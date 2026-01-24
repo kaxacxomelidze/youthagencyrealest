@@ -156,6 +156,10 @@ $payload = [
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?= h((string)$grant['title']) ?> • Grant Portal</title>
 
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="/youthagency/assets.css?v=1">
+
   <style>
     :root{
       --bg:#0b1220; --panel:#0f172a; --card:#111827; --line:#22314a;
@@ -163,9 +167,10 @@ $payload = [
       --warn:#f59e0b; --bad:#dc2626; --radius:14px;
     }
     *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Arial;background:var(--bg);color:var(--text)}
+    body{margin:0;font-family:'Noto Sans Georgian',system-ui,-apple-system,Segoe UI,Arial;background:var(--bg);color:var(--text)}
     a{color:inherit;text-decoration:none}
     .wrap{max-width:1160px;margin:0 auto;padding:18px}
+    .page-shell{padding:24px 0 48px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
     .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}
     .btn-ac{background:var(--accent);color:#fff}
@@ -243,8 +248,11 @@ $payload = [
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="banner">
+  <div id="siteHeaderMount"></div>
+
+  <div class="page-shell">
+    <div class="wrap">
+      <div class="banner">
       <div>
         <h1><?= h((string)$grant['title']) ?></h1>
         <p><?= h((string)($grant['description'] ?? '')) ?></p>
@@ -258,22 +266,25 @@ $payload = [
       <div class="art" aria-hidden="true"></div>
     </div>
 
-    <?php if(!$open): ?>
-      <div class="card" style="margin-top:14px">
-        <div class="notice">ამ საგრანტო პროგრამაზე განაცხადების მიღება დასრულებულია ან გამორთულია.</div>
-      </div>
-    <?php else: ?>
-      <div class="portal">
-        <div class="card steps">
-          <b>ნაბიჯები</b>
-          <div class="pill" style="margin-top:8px">შეავსეთ ნაბიჯობრივად</div>
-          <div id="stepsList"></div>
+      <?php if(!$open): ?>
+        <div class="card" style="margin-top:14px">
+          <div class="notice">ამ საგრანტო პროგრამაზე განაცხადების მიღება დასრულებულია ან გამორთულია.</div>
         </div>
+      <?php else: ?>
+        <div class="portal">
+          <div class="card steps">
+            <b>ნაბიჯები</b>
+            <div class="pill" style="margin-top:8px">შეავსეთ ნაბიჯობრივად</div>
+            <div id="stepsList"></div>
+          </div>
 
-        <div class="card" id="stepContent"></div>
-      </div>
-    <?php endif; ?>
+          <div class="card" id="stepContent"></div>
+        </div>
+      <?php endif; ?>
+    </div>
   </div>
+
+  <div id="siteFooterMount"></div>
 
 <script>
 const DATA = <?= json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
@@ -1282,6 +1293,36 @@ function bindFields(activeDbStep, fields, idx, isFiles){
     });
   }
 }
+</script>
+<script>
+  async function inject(id, file) {
+    const el = document.getElementById(id);
+    if (!el) throw new Error(`Mount element not found: #${id}`);
+    const res = await fetch(file + '?v=1');
+    if (!res.ok) throw new Error(`${file} not found. Status: ${res.status}`);
+    el.innerHTML = await res.text();
+  }
+
+  async function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src + '?v=1';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+      document.body.appendChild(s);
+    });
+  }
+
+  (async () => {
+    try {
+      await inject('siteHeaderMount', '/youthagency/header.html');
+      await loadScript('/youthagency/app.js');
+      if (typeof window.initHeader === 'function') window.initHeader();
+      await inject('siteFooterMount', '/youthagency/footer.html');
+    } catch (err) {
+      console.error('HEADER/FOOTER ERROR:', err);
+    }
+  })();
 </script>
 </body>
 </html>
