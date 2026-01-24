@@ -1172,6 +1172,20 @@ try {
     ]]);
   }
 
+  if ($action === 'grant_fields_map') {
+    $grant_id = (int)($json['grant_id'] ?? 0);
+    if ($grant_id <= 0) json_err('grant_id არასწორია');
+
+    $stF = $pdo->prepare("SELECT id,label FROM grant_fields WHERE grant_id=?");
+    $stF->execute([$grant_id]);
+    $map = [];
+    foreach ($stF->fetchAll(PDO::FETCH_ASSOC) as $r) {
+      $key = 'field_' . (int)$r['id'];
+      $map[$key] = (string)($r['label'] ?? '');
+    }
+    json_ok(['map' => $map]);
+  }
+
   if ($action === 'app_update_meta') {
     $id = (int)($json['id'] ?? 0);
     if ($id <= 0) json_err('id არასწორია');

@@ -578,6 +578,13 @@ function labelForKey(grantId, key){
   if(map && key in map) return map[key];
   return key; // fallback
 }
+
+function getSubmissionMeta(formData){
+  if(!formData || typeof formData !== "object") return null;
+  const meta = formData.__meta;
+  if(!meta) return null;
+  return (typeof meta === "string") ? parseJsonMaybe(meta) : meta;
+}
 async function ensureFieldLabels(grantId){
   grantId = Number(grantId || 0);
   if(!grantId) return;
@@ -774,6 +781,17 @@ function findApplicantTypeDeep(obj, depth=0){
 function renderApplicantTypePill(formData){
   const pill = document.getElementById("amTypePill");
   if(!pill) return;
+  const meta = getSubmissionMeta(formData);
+  if(meta && meta.applicant_type){
+    const t = normalizeApplicantType(meta.applicant_type);
+    if(t){
+      pill.style.display = "inline-flex";
+      pill.classList.remove("person","org");
+      pill.classList.add(t);
+      pill.textContent = (t === "org") ? "ორგანიზაცია" : "ფიზიკური პირი";
+      return;
+    }
+  }
   const t = findApplicantTypeDeep(formData);
   if(!t){
     pill.style.display = "none";
@@ -907,20 +925,21 @@ function flattenObject(obj, prefix="", out=[]){
   return out;
 }
 function prettifyKey(grantId, key){
+  const metaMap = window.__activeMetaFieldLabels || null;
   // If key is nested (a.b.c), try map last token if it matches field_x
   const k = String(key || "");
   const parts = k.split(".");
   const last = parts[parts.length - 1] || k;
 
   if(looksLikeFieldKey(last)){
-    const label = labelForKey(grantId, last);
+    const label = (metaMap && metaMap[last]) ? metaMap[last] : labelForKey(grantId, last);
     // show label + original key so admin can debug
     if(label && label !== last){
       return `${label}  ·  (${last})`;
     }
   }
   // also map direct keys if exists
-  const label2 = labelForKey(grantId, k);
+  const label2 = (metaMap && metaMap[k]) ? metaMap[k] : labelForKey(grantId, k);
   if(label2 && label2 !== k) return `${label2}  ·  (${k})`;
 
   return k;
@@ -930,14 +949,19 @@ function renderPretty(formData, app){
   if(!box) return;
 
   const grantId = Number(app?.grant_id || 0);
+  const meta = getSubmissionMeta(formData) || {};
+  window.__activeMetaFieldLabels = meta.field_labels || null;
 
   const rows = [];
   if(app){
     rows.push(["ID", String(app.id)]);
     rows.push(["გრანტი", (app.grant_title ? app.grant_title : ("#" + app.grant_id))]);
-    if(app.applicant_name) rows.push(["განმცხადებელი", app.applicant_name]);
-    if(app.email) rows.push(["ელ.ფოსტა", app.email]);
-    if(app.phone) rows.push(["ტელეფონი", app.phone]);
+    const applicantName = app.applicant_name || meta.applicant_name || '';
+    const applicantEmail = app.email || meta.applicant_email || '';
+    const applicantPhone = app.phone || meta.applicant_phone || '';
+    if(applicantName) rows.push(["განმცხადებელი", applicantName]);
+    if(applicantEmail) rows.push(["ელ.ფოსტა", applicantEmail]);
+    if(applicantPhone) rows.push(["ტელეფონი", applicantPhone]);
   }
 
   const flat = flattenObject(formData, "", []);
@@ -1038,8 +1062,43 @@ function renderUploads(uploads, formData){
 
   const fromApi = Array.isArray(uploads) ? uploads : [];
   const fromForm = extractFilesDeep(formData, []);
+  const meta = getSubmissionMeta(formData) || {};
+  const metaFiles = [];
 
-  const merged = uniqUploads([...fromApi, ...fromForm]);
+  const metaReqs = Array.isArray(meta?.files?.requirements) ? meta.files.requirements : [];
+  const metaFields = Array.isArray(meta?.files?.fields) ? meta.files.fields : [];
+  const metaOther = Array.isArray(meta?.files?.other) ? meta.files.other : [];
+
+  metaReqs.forEach(f=>{
+    metaFiles.push({
+      requirement_name: f.requirement_name || "",
+      requirement_id: f.requirement_id || "",
+      file_path: "",
+      original_name: f.original_name || "",
+      size_bytes: f.size_bytes || 0,
+      mime_type: f.mime_type || ""
+    });
+  });
+  metaFields.forEach(f=>{
+    metaFiles.push({
+      field_label: f.field_label || "",
+      field_id: f.field_id || "",
+      file_path: "",
+      original_name: f.original_name || "",
+      size_bytes: f.size_bytes || 0,
+      mime_type: f.mime_type || ""
+    });
+  });
+  metaOther.forEach(f=>{
+    metaFiles.push({
+      file_path: "",
+      original_name: f.original_name || "",
+      size_bytes: f.size_bytes || 0,
+      mime_type: f.mime_type || ""
+    });
+  });
+
+  const merged = uniqUploads([...fromApi, ...fromForm, ...metaFiles]);
 
   if(pill){
     if(merged.length){
@@ -1062,7 +1121,7 @@ function renderUploads(uploads, formData){
     const url = resolveFileUrl(rawPath);
     const name = u.original_name || u.file_name || u.stored_name || (rawPath ? rawPath.split("/").pop() : "file");
     const req = u.requirement_name ? ` • მოთხოვნა: ${u.requirement_name}` : "";
-    const fld = u.field_label ? ` • field: ${u.field_label}` : "";
+    const fld = u.field_label ? ` • ველი: ${u.field_label}` : "";
     const sz  = bytesToSize(u.size_bytes || u.size || 0);
     const mime= (u.mime_type || u.mime || "").toString();
 
@@ -1110,6 +1169,11 @@ async function openApp(id, grantIdHint=0){
 
     const fd = a.form_data || {};
     document.getElementById('amData').textContent = JSON.stringify(fd, null, 2);
+
+    const meta = getSubmissionMeta(fd) || {};
+    if(meta && meta.field_labels){
+      FIELD_LABELS.set(Number(a.grant_id || 0), meta.field_labels);
+    }
 
     renderApplicantTypePill(fd);
     renderPretty(fd, a);
