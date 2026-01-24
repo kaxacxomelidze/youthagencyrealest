@@ -2,6 +2,9 @@
 (function () {
   'use strict';
 
+  if (window.__appJsLoaded) return;
+  window.__appJsLoaded = true;
+
   console.log('[app.js] loaded ✅');
 
   // ----------------------------
