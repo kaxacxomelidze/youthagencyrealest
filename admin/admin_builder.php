@@ -400,11 +400,20 @@ function normalizeBuilder(b){
   for (const sid of Object.keys(b.fieldsByStep)) {
     b.fieldsByStep[sid] = (b.fieldsByStep[sid] || []).map(f => ({
       ...f,
-      label: (f.label ?? f.field_label ?? f.name ?? f.title ?? "").toString()
+      label: normalizeFieldLabel(f)
     }));
   }
 
   return b;
+}
+
+function normalizeFieldLabel(f){
+  const raw = (f?.label ?? f?.field_label ?? f?.name ?? f?.title ?? "").toString().trim();
+  const asLower = raw.toLowerCase();
+  if (!raw || /^field[_\s]?\d+$/i.test(raw) || /^f[_\s]?\d+$/i.test(raw)) {
+    return `ველი #${Number(f?.id || 0) || ''}`.trim();
+  }
+  return raw;
 }
 
 async function loadBuilder(){
@@ -532,13 +541,13 @@ function renderFields(){
     step ? `აქტიური ნაბიჯი: ${step.name} • ველები: ${list.length}` : '';
 
   box.innerHTML = list.map(f=>{
-    const lbl = (f.label ?? f.field_label ?? f.name ?? f.title ?? "").toString(); // ✅ fallback
+    const lbl = normalizeFieldLabel(f);
     return `
       <div class="card" style="margin-top:10px">
         <div class="row" style="align-items:center">
           <div>
             <b>${esc(lbl)}</b>
-            <div class="small">type: ${esc(f.type)} • required: ${String(f.is_required)==='1'?'კი':'არა'} • show_for: ${esc(f.show_for || 'all')}</div>
+            <div class="small">type: ${esc(f.type)} • required: ${String(f.is_required)==='1'?'კი':'არა'} • show_for: ${esc(f.show_for || 'all')} • id: ${Number(f.id || 0)}</div>
           </div>
           <div class="actions">
             <button class="btn ac" type="button" onclick="fieldEdit(${Number(f.id)})">რედაქტირება</button>

@@ -174,9 +174,11 @@ th{color:rgba(207,233,255,.92);font-size:12px;font-weight:900}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;padding:12px;z-index:50}
 .modal.show{display:flex}
-.box{width:min(1180px,100%);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+.box{width:min(1180px,100%);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:92vh;display:flex;flex-direction:column}
 .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .close{width:44px;height:44px;border-radius:14px}
+
+.modal-body{overflow:auto;padding-right:4px;flex:1}
 
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:980px){.grid2{grid-template-columns:1fr}}
@@ -193,10 +195,32 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .pill.org{border-color:rgba(46,204,113,.55);box-shadow:0 0 0 2px rgba(46,204,113,.12) inset}
 .pill.warn{border-color:rgba(241,196,15,.55);box-shadow:0 0 0 2px rgba(241,196,15,.12) inset}
 
-.kv{display:grid;grid-template-columns:260px 1fr;gap:8px;align-items:start}
-@media(max-width:980px){.kv{grid-template-columns:1fr}}
-.kv .k{color:rgba(207,233,255,.92);font-weight:900;font-size:12px}
-.kv .v{font-weight:800;word-break:break-word}
+.summaryGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0 12px}
+@media(max-width:980px){.summaryGrid{grid-template-columns:1fr}}
+.summaryCard{background:rgba(24,32,65,.72);border:1px solid var(--line);border-radius:12px;padding:10px}
+.summaryLabel{font-size:11px;color:var(--muted);font-weight:800}
+.summaryValue{font-size:14px;font-weight:900;margin-top:4px}
+.summaryMeta{margin-top:6px}
+.summaryMeta .tag{margin-right:6px;margin-bottom:4px}
+
+.answersHeader{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px}
+.answersMeta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.answersMeta input{max-width:260px}
+.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;max-height:520px;overflow:auto;padding-right:4px}
+.answerCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
+.answerLabel{font-size:12px;color:rgba(207,233,255,.92);font-weight:900}
+.answerValue{font-weight:800;margin-top:6px;white-space:pre-wrap;word-break:break-word}
+.answerMeta{font-size:11px;color:var(--muted);margin-top:6px}
+
+.uploadsGrid{display:grid;gap:10px;max-height:320px;overflow:auto;padding-right:4px}
+.uploadCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
+.uploadCard .mini{margin-top:6px}
+.uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.uploadCard .fileMeta b{word-break:break-word}
+.uploadActions{display:flex;gap:8px;flex-wrap:wrap}
+
+.rawToggle{border:1px dashed var(--line);border-radius:12px;padding:8px}
+.rawToggle summary{cursor:pointer;font-weight:900}
 
 .fileRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 .fileMeta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -316,83 +340,110 @@ a.dl:hover{opacity:.9}
       <button class="btn close" onclick="closeApp()" type="button">✕</button>
     </div>
 
-    <div class="grid2">
-      <div class="card">
-        <b>მიღებული ინფორმაცია (Label-ებით)</b>
-        <hr>
-
-        <div id="amPretty" class="kv"></div>
-
-        <div id="amUploadsWrap" style="display:none;margin-top:14px">
-          <hr>
-          <h2>ატვირთული ფაილები</h2>
-          <div class="mini">uploads + ასევე form_data-ში აღმოჩენილი ფაილები.</div>
-          <div id="amUploads"></div>
+    <div class="modal-body">
+      <div class="summaryGrid">
+        <div class="summaryCard">
+          <div class="summaryLabel">გრანტი</div>
+          <div class="summaryValue" id="amGrantTitle">—</div>
+          <div class="summaryMeta small" id="amGrantMeta"></div>
         </div>
-
-        <div id="amBudgetWrap" style="display:none;margin-top:14px">
-          <hr>
-          <h2 style="margin:0 0 6px 0">ბიუჯეტი</h2>
-          <div class="muted small">დამატებული ხარჯები. ჯამი ითვლება ავტომატურად.</div>
-
-          <div class="tableScroll" style="overflow:auto;margin-top:10px">
-            <table>
-              <thead>
-                <tr>
-                  <th>კატეგორია *</th>
-                  <th>აღწერა *</th>
-                  <th style="width:160px">თანხა (₾) *</th>
-                </tr>
-              </thead>
-              <tbody id="amBudgetBody"></tbody>
-            </table>
-          </div>
-
-          <div class="row" style="margin-top:10px;justify-content:space-between;align-items:center">
-            <div></div>
-            <div class="pill open">ჯამი: <b id="amBudgetTotal">0</b> ₾</div>
-          </div>
+        <div class="summaryCard">
+          <div class="summaryLabel">განმცხადებელი</div>
+          <div class="summaryValue" id="amApplicantName">—</div>
+          <div class="summaryMeta small" id="amApplicantMeta"></div>
         </div>
-
-        <div style="margin-top:14px">
-          <hr>
-          <b>RAW JSON (სრული)</b>
-          <pre id="amData" class="small mono" style="white-space:pre-wrap;margin:8px 0 0 0"></pre>
+        <div class="summaryCard">
+          <div class="summaryLabel">სტატუსი</div>
+          <div class="summaryValue" id="amStatusText">—</div>
+          <div class="summaryMeta small" id="amTimeline"></div>
         </div>
       </div>
 
-      <div class="card">
-        <b>მეტა (სტატუსი / ქულა / შენიშვნა)</b>
-
-        <div class="row" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-          <div style="flex:1;min-width:240px">
-            <label class="small">სტატუსი</label>
-            <select id="amStatus" onchange="saveAppMetaSoon()">
-              <option value="submitted">გაგზავნილი</option>
-              <option value="in_review">გადახედვაში</option>
-              <option value="need_clarification">დაზუსტება სჭირდება</option>
-              <option value="approved">დამტკიცებული</option>
-              <option value="rejected">უარყოფილი</option>
-            </select>
+      <div class="grid2">
+        <div class="card">
+          <div class="answersHeader">
+            <b>ფორმის პასუხები</b>
+            <div class="answersMeta">
+              <input id="amSearch" placeholder="ძებნა პასუხებში..." oninput="filterPretty()">
+              <span class="pill" id="amAnswerCount">0</span>
+            </div>
           </div>
-          <div style="flex:0 0 220px;min-width:220px">
-            <label class="small">ქულა (0-100)</label>
-            <input id="amRating" type="number" min="0" max="100" oninput="saveAppMetaSoon()">
+
+          <div id="amPretty" class="answerGrid"></div>
+
+          <div id="amUploadsWrap" style="display:none;margin-top:14px">
+            <hr>
+            <h2>ატვირთული ფაილები</h2>
+            <div class="mini">uploads + ასევე form_data-ში აღმოჩენილი ფაილები.</div>
+            <div id="amUploads" class="uploadsGrid"></div>
+          </div>
+
+          <div id="amBudgetWrap" style="display:none;margin-top:14px">
+            <hr>
+            <h2 style="margin:0 0 6px 0">ბიუჯეტი</h2>
+            <div class="muted small">დამატებული ხარჯები. ჯამი ითვლება ავტომატურად.</div>
+
+            <div class="tableScroll" style="overflow:auto;margin-top:10px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>კატეგორია *</th>
+                    <th>აღწერა *</th>
+                    <th style="width:160px">თანხა (₾) *</th>
+                  </tr>
+                </thead>
+                <tbody id="amBudgetBody"></tbody>
+              </table>
+            </div>
+
+            <div class="row" style="margin-top:10px;justify-content:space-between;align-items:center">
+              <div></div>
+              <div class="pill open">ჯამი: <b id="amBudgetTotal">0</b> ₾</div>
+            </div>
+          </div>
+
+          <div style="margin-top:14px">
+            <hr>
+            <details class="rawToggle">
+              <summary>RAW JSON (სრული)</summary>
+              <pre id="amData" class="small mono" style="white-space:pre-wrap;margin:8px 0 0 0"></pre>
+            </details>
           </div>
         </div>
 
-        <div style="height:10px"></div>
-        <label class="small">ადმინის შენიშვნა</label>
-        <textarea id="amNote" oninput="saveAppMetaSoon()"></textarea>
+        <div class="card" style="position:sticky;top:0;align-self:start">
+          <b>მეტა (სტატუსი / ქულა / შენიშვნა)</b>
 
-        <hr>
-        <div class="small">
-          ⚠️ წაშლა არის <b>soft-delete</b> (ფაილები არ იშლება).
-        </div>
+          <div class="row" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+            <div style="flex:1;min-width:240px">
+              <label class="small">სტატუსი</label>
+              <select id="amStatus" onchange="saveAppMetaSoon()">
+                <option value="submitted">გაგზავნილი</option>
+                <option value="in_review">გადახედვაში</option>
+                <option value="need_clarification">დაზუსტება სჭირდება</option>
+                <option value="approved">დამტკიცებული</option>
+                <option value="rejected">უარყოფილი</option>
+              </select>
+            </div>
+            <div style="flex:0 0 220px;min-width:220px">
+              <label class="small">ქულა (0-100)</label>
+              <input id="amRating" type="number" min="0" max="100" oninput="saveAppMetaSoon()">
+            </div>
+          </div>
 
-        <div class="actions" style="margin-top:12px">
-          <button class="btn bad" type="button" onclick="deleteActiveApp()">წაშლა</button>
-          <button class="btn ok" type="button" onclick="closeApp()">დახურვა</button>
+          <div style="height:10px"></div>
+          <label class="small">ადმინის შენიშვნა</label>
+          <textarea id="amNote" oninput="saveAppMetaSoon()"></textarea>
+
+          <hr>
+          <div class="small">
+            ⚠️ წაშლა არის <b>soft-delete</b> (ფაილები არ იშლება).
+          </div>
+
+          <div class="actions" style="margin-top:12px">
+            <button class="btn bad" type="button" onclick="deleteActiveApp()">წაშლა</button>
+            <button class="btn ok" type="button" onclick="closeApp()">დახურვა</button>
+          </div>
         </div>
       </div>
     </div>
@@ -573,10 +624,35 @@ function looksLikeFieldKey(k){
   const s = String(k || "");
   return /^field_\d+$/i.test(s) || /^f_\d+$/i.test(s) || /^\d+$/.test(s);
 }
+function normalizeFieldKey(k){
+  const s = String(k || "").trim();
+  if(/^\d+$/.test(s)) return `field_${s}`;
+  if(/^f_\d+$/i.test(s)) return `field_${s.replace(/^\D+_/, "")}`;
+  if(/^field_\d+$/i.test(s)) return s;
+  return s;
+}
+function fallbackFieldLabel(k){
+  const s = String(k || "");
+  const m = s.match(/(\d+)/);
+  if(m) return `ველი #${m[1]}`;
+  return s || "ველი";
+}
 function labelForKey(grantId, key){
   const map = FIELD_LABELS.get(Number(grantId));
-  if(map && key in map) return map[key];
-  return key; // fallback
+  const norm = normalizeFieldKey(key);
+  if(map && norm in map){
+    const lbl = String(map[norm] ?? "").trim();
+    return lbl || fallbackFieldLabel(norm);
+  }
+  if(looksLikeFieldKey(norm)) return fallbackFieldLabel(norm);
+  return norm; // fallback
+}
+
+function getSubmissionMeta(formData){
+  if(!formData || typeof formData !== "object") return null;
+  const meta = formData.__meta;
+  if(!meta) return null;
+  return (typeof meta === "string") ? parseJsonMaybe(meta) : meta;
 }
 async function ensureFieldLabels(grantId){
   grantId = Number(grantId || 0);
@@ -608,6 +684,14 @@ function statusPill(status){
     (s === "need_clarification") ? "დაზუსტება სჭირდება" :
     "გაგზავნილი";
   return `<span class="${cls}"><span class="dot ${dot}"></span>${esc(txt)}</span>`;
+}
+function statusText(status){
+  const s = (status || "submitted");
+  return (s === "approved") ? "დამტკიცებული" :
+    (s === "rejected") ? "უარყოფილი" :
+    (s === "in_review") ? "გადახედვაში" :
+    (s === "need_clarification") ? "დაზუსტება სჭირდება" :
+    "გაგზავნილი";
 }
 
 async function loadApps(withLoading){
@@ -774,6 +858,17 @@ function findApplicantTypeDeep(obj, depth=0){
 function renderApplicantTypePill(formData){
   const pill = document.getElementById("amTypePill");
   if(!pill) return;
+  const meta = getSubmissionMeta(formData);
+  if(meta && meta.applicant_type){
+    const t = normalizeApplicantType(meta.applicant_type);
+    if(t){
+      pill.style.display = "inline-flex";
+      pill.classList.remove("person","org");
+      pill.classList.add(t);
+      pill.textContent = (t === "org") ? "ორგანიზაცია" : "ფიზიკური პირი";
+      return;
+    }
+  }
   const t = findApplicantTypeDeep(formData);
   if(!t){
     pill.style.display = "none";
@@ -879,6 +974,15 @@ function valToText(v){
   if(typeof v === "number" || typeof v === "boolean") return String(v);
   try{ return JSON.stringify(v); }catch(_){ return String(v); }
 }
+function normalizeAnswerValue(label, value){
+  if(value == null) return value;
+  if(typeof value === "string"){
+    const v = value.trim().toLowerCase();
+    if(label && label.includes("ტიპ") && (v === "person" || v === "individual" || v === "physical")) return "ფიზიკური პირი";
+    if(label && label.includes("ტიპ") && (v === "org" || v === "organization" || v === "organisation" || v === "company")) return "ორგანიზაცია";
+  }
+  return value;
+}
 function flattenObject(obj, prefix="", out=[]){
   obj = parseJsonMaybe(obj);
   if(obj === null || obj === undefined) return out;
@@ -890,6 +994,7 @@ function flattenObject(obj, prefix="", out=[]){
   }
   if(typeof obj === "object"){
     for(const [k,v] of Object.entries(obj)){
+      if(String(k) === "__meta") continue;
       const key = prefix ? `${prefix}.${k}` : k;
       if(v && typeof v === "object"){
         if(String(k).toLowerCase().includes("budget") || String(k).includes("ბიუჯ")){
@@ -906,40 +1011,33 @@ function flattenObject(obj, prefix="", out=[]){
   out.push([prefix || "value", valToText(obj)]);
   return out;
 }
-function prettifyKey(grantId, key){
-  // If key is nested (a.b.c), try map last token if it matches field_x
+function resolveLabelForKey(grantId, key){
+  const metaMap = window.__activeMetaFieldLabels || null;
   const k = String(key || "");
   const parts = k.split(".");
   const last = parts[parts.length - 1] || k;
+  const normLast = normalizeFieldKey(last);
+  const normKey = normalizeFieldKey(k);
 
-  if(looksLikeFieldKey(last)){
-    const label = labelForKey(grantId, last);
-    // show label + original key so admin can debug
-    if(label && label !== last){
-      return `${label}  ·  (${last})`;
-    }
+  const isNumericOnly = /^\d+$/.test(last);
+  if(looksLikeFieldKey(last) && (!isNumericOnly || !k.includes("."))){
+    const label = (metaMap && metaMap[normLast]) ? metaMap[normLast] : labelForKey(grantId, normLast);
+    return label || fallbackFieldLabel(normLast);
   }
-  // also map direct keys if exists
-  const label2 = labelForKey(grantId, k);
-  if(label2 && label2 !== k) return `${label2}  ·  (${k})`;
-
+  const label2 = (metaMap && metaMap[normKey]) ? metaMap[normKey] : labelForKey(grantId, normKey);
+  if(label2 && label2 !== normKey) return label2;
   return k;
 }
 function renderPretty(formData, app){
   const box = document.getElementById("amPretty");
   if(!box) return;
+  const countEl = document.getElementById("amAnswerCount");
 
   const grantId = Number(app?.grant_id || 0);
+  const meta = getSubmissionMeta(formData) || {};
+  window.__activeMetaFieldLabels = meta.field_labels || null;
 
   const rows = [];
-  if(app){
-    rows.push(["ID", String(app.id)]);
-    rows.push(["გრანტი", (app.grant_title ? app.grant_title : ("#" + app.grant_id))]);
-    if(app.applicant_name) rows.push(["განმცხადებელი", app.applicant_name]);
-    if(app.email) rows.push(["ელ.ფოსტა", app.email]);
-    if(app.phone) rows.push(["ტელეფონი", app.phone]);
-  }
-
   const flat = flattenObject(formData, "", []);
   const seen = new Set();
   for(const [k,v] of flat){
@@ -947,14 +1045,45 @@ function renderPretty(formData, app){
     if(!kk) continue;
     if(seen.has(kk)) continue;
     seen.add(kk);
-
-    rows.push([prettifyKey(grantId, kk), v]);
+    const label = resolveLabelForKey(grantId, kk);
+    const normalizedValue = normalizeAnswerValue(label, v);
+    rows.push({label, value: normalizedValue, rawKey: kk});
   }
 
-  box.innerHTML = rows.map(([k,v])=>`
-    <div class="k">${esc(k)}</div>
-    <div class="v">${esc(v || "—")}</div>
-  `).join("");
+  box.innerHTML = rows.map(row=>{
+    const showMeta = row.rawKey && !looksLikeFieldKey(row.rawKey) && row.rawKey !== row.label;
+    return `
+      <div class="answerCard" data-label="${escAttr(row.label)}" data-key="${escAttr(row.rawKey)}">
+        <div class="answerLabel">${esc(row.label)}</div>
+        <div class="answerValue">${esc(row.value || "—")}</div>
+        ${showMeta ? `<div class="answerMeta">path: ${esc(row.rawKey)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  if(countEl){
+    countEl.dataset.total = String(rows.length);
+    countEl.textContent = String(rows.length);
+  }
+  filterPretty();
+}
+
+function filterPretty(){
+  const input = document.getElementById("amSearch");
+  const q = (input?.value || "").trim().toLowerCase();
+  const cards = document.querySelectorAll("#amPretty .answerCard");
+  let shown = 0;
+  cards.forEach(card=>{
+    const hay = `${card.dataset.label || ""} ${card.dataset.key || ""} ${card.textContent || ""}`.toLowerCase();
+    const match = !q || hay.includes(q);
+    card.style.display = match ? "" : "none";
+    if(match) shown += 1;
+  });
+  const countEl = document.getElementById("amAnswerCount");
+  if(countEl){
+    const total = Number(countEl.dataset.total || cards.length);
+    countEl.textContent = q ? `${shown}/${total}` : String(total);
+  }
 }
 
 /* Files */
@@ -1030,7 +1159,7 @@ function uniqUploads(arr){
   }
   return out;
 }
-function renderUploads(uploads, formData){
+function renderUploads(uploads, formData, grantId=0){
   const wrap = document.getElementById("amUploadsWrap");
   const box  = document.getElementById("amUploads");
   const pill = document.getElementById("amFilesPill");
@@ -1038,8 +1167,43 @@ function renderUploads(uploads, formData){
 
   const fromApi = Array.isArray(uploads) ? uploads : [];
   const fromForm = extractFilesDeep(formData, []);
+  const meta = getSubmissionMeta(formData) || {};
+  const metaFiles = [];
 
-  const merged = uniqUploads([...fromApi, ...fromForm]);
+  const metaReqs = Array.isArray(meta?.files?.requirements) ? meta.files.requirements : [];
+  const metaFields = Array.isArray(meta?.files?.fields) ? meta.files.fields : [];
+  const metaOther = Array.isArray(meta?.files?.other) ? meta.files.other : [];
+
+  metaReqs.forEach(f=>{
+    metaFiles.push({
+      requirement_name: f.requirement_name || "",
+      requirement_id: f.requirement_id || "",
+      file_path: "",
+      original_name: f.original_name || "",
+      size_bytes: f.size_bytes || 0,
+      mime_type: f.mime_type || ""
+    });
+  });
+  metaFields.forEach(f=>{
+    metaFiles.push({
+      field_label: f.field_label || "",
+      field_id: f.field_id || "",
+      file_path: "",
+      original_name: f.original_name || "",
+      size_bytes: f.size_bytes || 0,
+      mime_type: f.mime_type || ""
+    });
+  });
+  metaOther.forEach(f=>{
+    metaFiles.push({
+      file_path: "",
+      original_name: f.original_name || "",
+      size_bytes: f.size_bytes || 0,
+      mime_type: f.mime_type || ""
+    });
+  });
+
+  const merged = uniqUploads([...fromApi, ...fromForm, ...metaFiles]);
 
   if(pill){
     if(merged.length){
@@ -1061,20 +1225,22 @@ function renderUploads(uploads, formData){
     const rawPath = (u.file_path || u.url || "").toString();
     const url = resolveFileUrl(rawPath);
     const name = u.original_name || u.file_name || u.stored_name || (rawPath ? rawPath.split("/").pop() : "file");
+    const fieldLabel = u.field_label ? resolveLabelForKey(grantId, u.field_label) : "";
     const req = u.requirement_name ? ` • მოთხოვნა: ${u.requirement_name}` : "";
-    const fld = u.field_label ? ` • field: ${u.field_label}` : "";
+    const fld = fieldLabel ? ` • ველი: ${fieldLabel}` : "";
     const sz  = bytesToSize(u.size_bytes || u.size || 0);
     const mime= (u.mime_type || u.mime || "").toString();
 
     return `
-      <div class="card" style="margin-top:10px">
-        <div class="fileRow">
+      <div class="uploadCard">
+        <div class="uploadHeader">
           <div class="fileMeta">
             <b>${esc(name)}</b>
             <span class="mini">${esc(sz)}${mime ? " • " + esc(mime) : ""}${esc(req)}${esc(fld)}</span>
           </div>
-          <div class="actions">
-            ${url ? `<a class="dl" href="${escAttr(url)}" target="_blank" rel="noopener">გახსნა/ჩამოტვირთვა</a>` : `<span class="mini">ბმული არ მოიძებნა</span>`}
+          <div class="uploadActions">
+            ${url ? `<a class="btn ghost" href="${escAttr(url)}" target="_blank" rel="noopener">გახსნა</a>` : `<span class="mini">ბმული არ მოიძებნა</span>`}
+            ${url ? `<a class="btn ghost" href="${escAttr(url)}" download>ჩამოტვირთვა</a>` : ``}
           </div>
         </div>
         <div class="mini mono" style="margin-top:6px;opacity:.85">path: ${esc(rawPath || "-")}</div>
@@ -1100,20 +1266,47 @@ async function openApp(id, grantIdHint=0){
 
     ACTIVE_APP_ID = Number(a.id);
 
+    const fd = a.form_data || {};
+    const meta = getSubmissionMeta(fd) || {};
+
     document.getElementById('amTitle').textContent = "განაცხადი — " + a.id;
     document.getElementById('amMeta').textContent =
-      `გრანტი: ${(a.grant_title || ("#" + a.grant_id))} • სტატუსი: ${a.status} • ქულა: ${a.rating} • შექმნა: ${a.created_at} • განახლდა: ${a.updated_at || "-"}`;
+      `სტატუსი: ${statusText(a.status)} • ქულა: ${a.rating} • შექმნა: ${a.created_at} • განახლდა: ${a.updated_at || "-"}`;
+
+    const grantTitle = (a.grant_title || ("#" + a.grant_id));
+    const applicantName = a.applicant_name || meta.applicant_name || "—";
+    const applicantEmail = a.email || meta.applicant_email || "—";
+    const applicantPhone = a.phone || meta.applicant_phone || "—";
+
+    document.getElementById("amGrantTitle").textContent = grantTitle;
+    document.getElementById("amGrantMeta").innerHTML = `<span class="tag muted">grant_id: ${esc(a.grant_id)}</span>`;
+
+    document.getElementById("amApplicantName").textContent = applicantName;
+    document.getElementById("amApplicantMeta").innerHTML = `
+      <span class="tag">📧 ${esc(applicantEmail)}</span>
+      <span class="tag">📞 ${esc(applicantPhone)}</span>
+    `;
+
+    document.getElementById("amStatusText").textContent = statusText(a.status);
+    document.getElementById("amTimeline").innerHTML = `
+      <span class="tag muted">ქულა: ${Number(a.rating || 0)}</span>
+      <span class="tag muted">შექმნა: ${esc(a.created_at)}</span>
+      <span class="tag muted">განახლდა: ${esc(a.updated_at || "-")}</span>
+    `;
 
     document.getElementById('amStatus').value = a.status || 'submitted';
     document.getElementById('amRating').value = Number(a.rating || 0);
     document.getElementById('amNote').value = a.admin_note || '';
 
-    const fd = a.form_data || {};
     document.getElementById('amData').textContent = JSON.stringify(fd, null, 2);
+
+    if(meta && meta.field_labels){
+      FIELD_LABELS.set(Number(a.grant_id || 0), meta.field_labels);
+    }
 
     renderApplicantTypePill(fd);
     renderPretty(fd, a);
-    renderUploads(a.uploads || [], fd);
+    renderUploads(a.uploads || [], fd, Number(a.grant_id || 0));
     showBudgetInModal(fd);
 
     document.getElementById('appModal').classList.add('show');
@@ -1152,6 +1345,13 @@ function closeApp(){
 
   const pretty = document.getElementById("amPretty");
   if(pretty) pretty.innerHTML = "";
+  const search = document.getElementById("amSearch");
+  if(search) search.value = "";
+  const countEl = document.getElementById("amAnswerCount");
+  if(countEl){
+    countEl.textContent = "0";
+    delete countEl.dataset.total;
+  }
 }
 
 /* save meta throttled */
