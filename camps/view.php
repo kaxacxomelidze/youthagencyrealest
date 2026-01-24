@@ -2,76 +2,55 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../admin/config.php';
-require_once __DIR__ . '/../admin/db.php';
+date_default_timezone_set('Asia/Tbilisi');
+
+$pdo = db();
 
 if (!function_exists('h')) {
-  function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+  function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
-
-/* ------------------ LOAD CAMP ------------------ */
-$campId = (int)($_GET['id'] ?? 0);
-if ($campId <= 0) { http_response_code(404); echo "Not found"; exit; }
-
-$stmt = $pdo->prepare("SELECT * FROM camps WHERE id=? LIMIT 1");
-$stmt->execute([$campId]);
-$camp = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$camp) { http_response_code(404); echo "Not found"; exit; }
-
-/* ------------------ LOAD FIELDS ------------------ */
-$fieldsSt = $pdo->prepare("SELECT id,label,type,required,options_json,field_key
-                           FROM camps_fields
-                           WHERE camp_id=?
-                           ORDER BY sort_order ASC, id ASC");
-$fieldsSt->execute([$campId]);
-$fields = $fieldsSt->fetchAll(PDO::FETCH_ASSOC);
-
-/* ------------------ LOAD POSTS ------------------ */
-$postsSt = $pdo->prepare("SELECT id,title,cover,body,created_at FROM camps_posts WHERE camp_id=? ORDER BY id DESC");
-$postsSt->execute([$campId]);
-$posts = $postsSt->fetchAll(PDO::FETCH_ASSOC);
-
-/* Gallery media */
-$postIds = array_map(fn($p)=>(int)$p['id'], $posts);
-$mediaByPost = [];
-if ($postIds) {
-  $inQ = implode(',', array_fill(0, count($postIds), '?'));
-  $m = $pdo->prepare("SELECT id,post_id,path,sort_order
-                      FROM camps_post_media
-                      WHERE post_id IN ($inQ)
-                      ORDER BY sort_order ASC, id ASC");
-  $m->execute($postIds);
-  while ($row = $m->fetch(PDO::FETCH_ASSOC)) {
-    $pid = (int)$row['post_id'];
-    $mediaByPost[$pid][] = $row;
-  }
-}
-
-/* ------------------ REGISTRATION WINDOW ------------------ */
-$closedManual = (int)$camp['closed'] === 1;
-$start = strtotime((string)$camp['start_date']);
-$end   = strtotime((string)$camp['end_date']);
-$now   = time();
-$regOpen = (!$closedManual && $now >= $start && $now <= $end);
 
 /* ------------------ HELPERS ------------------ */
-function upload_public_file(string $fieldName, string $subdir, array $allowedExt = ['jpg','jpeg','png','webp','gif','pdf','doc','docx']): string {
-  if (empty($_FILES[$fieldName]) || ($_FILES[$fieldName]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return '';
+function fmtDate(?string $d): string {
+  $d = trim((string)$d);
+  if ($d === '') return '';
+  $ts = strtotime($d);
+  if ($ts === false) return $d;
+  return date('Y-m-d', $ts);
+}
 
-  $tmp  = $_FILES[$fieldName]['tmp_name'];
-  $orig = basename((string)$_FILES[$fieldName]['name']);
-  $ext  = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
-  if (!in_array($ext, $allowedExt, true)) return '';
+function fmtDateTime(?string $d): string {
+  $d = trim((string)$d);
+  if ($d === '') return '';
+  $ts = strtotime($d);
+  if ($ts === false) return $d;
+  return date('Y-m-d H:i', $ts);
+}
 
-  $dir = __DIR__ . '/../uploads/' . $subdir;
-  if (!is_dir($dir)) {
-    if (!@mkdir($dir, 0775, true) && !is_dir($dir)) return '';
+function dateToTs(?string $raw, bool $endOfDay = false): ?int {
+  $raw = trim((string)$raw);
+  if ($raw === '') return null;
+
+  $ts = strtotime($raw);
+  if ($ts === false) return null;
+
+  // If only date, optionally move to end of day
+  if ($endOfDay && preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+    $ts += 86399;
   }
+  return $ts;
+}
 
-  $fname = "up_" . time() . "_" . bin2hex(random_bytes(6)) . "." . $ext;
-  $dest  = $dir . "/" . $fname;
-  if (!move_uploaded_file($tmp, $dest)) return '';
+function sanitize_pid(string $s): string {
+  $s = preg_replace('/\s+/', '', $s) ?? $s;
+  return preg_replace('/\D+/', '', $s) ?? $s;
+}
 
-  return "/youthagency/uploads/$subdir/" . $fname;
+function sanitize_phone(string $s): string {
+  $s = trim($s);
+  // keep + and digits
+  $s = preg_replace('/(?!^\+)[^\d]+/', '', $s) ?? $s;
+  return $s;
 }
 
 function field_autofill_key(array $f): string {
@@ -86,21 +65,129 @@ function field_autofill_key(array $f): string {
   return '';
 }
 
-function fmtDate(?string $d): string {
-  $d = (string)$d;
-  if ($d === '') return '';
-  $ts = strtotime($d);
-  if ($ts === false) return $d;
-  return date('Y-m-d', $ts);
+/* safer uploads */
+function upload_public_file(string $fieldName, string $subdir, array $allowedExt = ['jpg','jpeg','png','webp','gif','pdf','doc','docx'], int $maxBytes = 8_000_000): string {
+  if (empty($_FILES[$fieldName]) || ($_FILES[$fieldName]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return '';
+
+  $size = (int)($_FILES[$fieldName]['size'] ?? 0);
+  if ($size <= 0 || $size > $maxBytes) return '';
+
+  $tmp  = (string)($_FILES[$fieldName]['tmp_name'] ?? '');
+  $orig = basename((string)($_FILES[$fieldName]['name'] ?? ''));
+  $ext  = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
+
+  if ($tmp === '' || !is_uploaded_file($tmp)) return '';
+  if ($ext === '' || !in_array($ext, $allowedExt, true)) return '';
+
+  // Basic MIME check for images
+  $mime = '';
+  if (function_exists('finfo_open')) {
+    $fi = finfo_open(FILEINFO_MIME_TYPE);
+    if ($fi) { $mime = (string)finfo_file($fi, $tmp); finfo_close($fi); }
+  }
+  if (in_array($ext, ['jpg','jpeg','png','webp','gif'], true)) {
+    if ($mime !== '' && strpos($mime, 'image/') !== 0) return '';
+  }
+
+  $dir = __DIR__ . '/../uploads/' . $subdir;
+  if (!is_dir($dir)) {
+    if (!@mkdir($dir, 0775, true) && !is_dir($dir)) return '';
+  }
+
+  $fname = "up_" . time() . "_" . bin2hex(random_bytes(8)) . "." . $ext;
+  $dest  = $dir . "/" . $fname;
+
+  if (!move_uploaded_file($tmp, $dest)) return '';
+
+  return "/youthagency/uploads/$subdir/" . $fname;
 }
 
 /* ------------------ PRG: POST -> REDIRECT -> GET ------------------ */
 function redirect_same(array $params = []): void {
-  $path = strtok($_SERVER['REQUEST_URI'], '?');
-  $qs = $params ? ('?' . http_build_query($params)) : '';
-  header("Location: {$path}{$qs}");
+  // Keep id=... always
+  $base = strtok($_SERVER['REQUEST_URI'], '?');
+  $cur = $_GET ?? [];
+  $cur = is_array($cur) ? $cur : [];
+  $merged = array_merge($cur, $params);
+
+  // remove old msg params if set
+  unset($merged['ok'], $merged['err']);
+
+  // add new ones
+  foreach ($params as $k => $v) {
+    $merged[$k] = $v;
+  }
+
+  $qs = $merged ? ('?' . http_build_query($merged)) : '';
+  header("Location: {$base}{$qs}");
   exit;
 }
+
+/* ------------------ LOAD CAMP ------------------ */
+$campId = (int)($_GET['id'] ?? 0);
+if ($campId <= 0) { http_response_code(404); echo "Not found"; exit; }
+
+$stmt = $pdo->prepare("SELECT * FROM camps WHERE id=? LIMIT 1");
+$stmt->execute([$campId]);
+$camp = $stmt->fetch(PDO::FETCH_ASSOC);
+if (!$camp) { http_response_code(404); echo "Not found"; exit; }
+
+/* ------------------ LOAD FIELDS ------------------ */
+$fieldsSt = $pdo->prepare("
+  SELECT id,label,type,required,options_json,field_key
+  FROM camps_fields
+  WHERE camp_id=?
+  ORDER BY sort_order ASC, id ASC
+");
+$fieldsSt->execute([$campId]);
+$fields = $fieldsSt->fetchAll(PDO::FETCH_ASSOC);
+
+/* ------------------ LOAD POSTS ------------------ */
+$postsSt = $pdo->prepare("
+  SELECT id,title,cover,body,created_at
+  FROM camps_posts
+  WHERE camp_id=?
+  ORDER BY id DESC
+");
+$postsSt->execute([$campId]);
+$posts = $postsSt->fetchAll(PDO::FETCH_ASSOC);
+
+/* Gallery media */
+$postIds = array_map(fn($p)=>(int)$p['id'], $posts);
+$mediaByPost = [];
+if ($postIds) {
+  $inQ = implode(',', array_fill(0, count($postIds), '?'));
+  $m = $pdo->prepare("
+    SELECT id,post_id,path,sort_order
+    FROM camps_post_media
+    WHERE post_id IN ($inQ)
+    ORDER BY sort_order ASC, id ASC
+  ");
+  $m->execute($postIds);
+  while ($row = $m->fetch(PDO::FETCH_ASSOC)) {
+    $pid = (int)$row['post_id'];
+    $mediaByPost[$pid][] = $row;
+  }
+}
+
+/* ------------------ REGISTRATION WINDOW (IMPROVED) ------------------ */
+$closedManual = ((int)($camp['closed'] ?? 0) === 1);
+
+$startTs = dateToTs($camp['start_date'] ?? null, false);
+$endTs   = dateToTs($camp['end_date'] ?? null, true);
+$now     = time();
+
+// If no start/end provided -> treat as open window unless admin closed
+$timeNotStarted = ($startTs !== null && $now < $startTs);
+$timeEnded      = ($endTs !== null && $now > $endTs);
+
+$regOpen = (!$closedManual && !$timeNotStarted && !$timeEnded);
+
+// Show reason in UI
+$regReason = '';
+if ($closedManual) $regReason = 'ადმინისტრატორმა დახურა';
+elseif ($timeNotStarted) $regReason = 'მალე დაიწყება';
+elseif ($timeEnded) $regReason = 'ვადა გავიდა';
 
 /* ------------------ SUBMIT (POST) ------------------ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -109,34 +196,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   $vals = [];
-  $uniqueKey = "";
+  $uniqueKey = '';
 
-  // detect PID early (for blocklist)
+  // Find PID / Email / Phone for unique key (priority)
   $pidValue = '';
+  $emailValue = '';
+  $phoneValue = '';
+
   foreach ($fields as $f) {
-    if ((string)$f['type'] === 'pid' || field_autofill_key($f) === 'pid') {
-      $pidValue = preg_replace('/\s+/', '', trim((string)($_POST["f_{$f['id']}"] ?? '')));
-      if ($pidValue !== '') break;
+    $type = (string)($f['type'] ?? '');
+    $fid  = (int)($f['id'] ?? 0);
+    $fk   = field_autofill_key($f);
+    $name = "f_" . $fid;
+
+    if ($type === 'file') continue;
+
+    $v = trim((string)($_POST[$name] ?? ''));
+
+    if ($type === 'pid' || $fk === 'pid') {
+      $pidValue = sanitize_pid($v);
+    } elseif ($type === 'email' || $fk === 'email') {
+      $emailValue = trim($v);
+    } elseif ($type === 'phone' || $fk === 'phone') {
+      $phoneValue = sanitize_phone($v);
     }
   }
 
-  // blocklist check
+  // blocklist check by PID
   if ($pidValue !== '') {
-    $bst = $pdo->prepare("SELECT id
-                          FROM camps_pid_blocklist
-                          WHERE pid=? AND (camp_id IS NULL OR camp_id=?)
-                          LIMIT 1");
+    $bst = $pdo->prepare("
+      SELECT id
+      FROM camps_pid_blocklist
+      WHERE pid=? AND (camp_id IS NULL OR camp_id=?)
+      LIMIT 1
+    ");
     $bst->execute([$pidValue, $campId]);
     if ($bst->fetch(PDO::FETCH_ASSOC)) {
       redirect_same(['err' => 'blocked']);
     }
   }
 
-  // collect + validate required fields
+  // collect + validate required fields, and build vals json
   foreach ($fields as $f) {
-    $type     = (string)$f['type'];
-    $required = (int)$f['required'] === 1;
-    $fieldId  = (int)$f['id'];
+    $type     = (string)($f['type'] ?? '');
+    $required = ((int)($f['required'] ?? 0) === 1);
+    $fieldId  = (int)($f['id'] ?? 0);
     $name     = "f_" . $fieldId;
 
     if ($type === 'file') {
@@ -147,17 +251,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $v = trim((string)($_POST[$name] ?? ''));
-    if ($required && $v === '') redirect_same(['err' => 'required']);
-    $vals[(string)$fieldId] = $v;
 
-    // uniqueKey from PID/email/phone (by type OR by autofill key)
-    if ($uniqueKey === '') {
-      $fk = field_autofill_key($f);
-      if ($type === 'pid' || $type === 'email' || $type === 'phone' || $fk === 'pid' || $fk === 'email' || $fk === 'phone') {
-        $uniqueKey = $v;
-      }
-    }
+    if ($required && $v === '') redirect_same(['err' => 'required']);
+
+    // Normalize values by type
+    $fk = field_autofill_key($f);
+    if ($type === 'pid' || $fk === 'pid') $v = sanitize_pid($v);
+    if ($type === 'phone' || $fk === 'phone') $v = sanitize_phone($v);
+
+    $vals[(string)$fieldId] = $v;
   }
+
+  // choose uniqueKey: PID > Email > Phone
+  if ($pidValue !== '') $uniqueKey = $pidValue;
+  elseif ($emailValue !== '') $uniqueKey = $emailValue;
+  elseif ($phoneValue !== '') $uniqueKey = $phoneValue;
 
   if ($uniqueKey === '') {
     redirect_same(['err' => 'unikey']);
@@ -172,8 +280,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   // save registration
   $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-  $ins = $pdo->prepare("INSERT INTO camps_registrations(camp_id,unique_key,ip,status,created_at,values_json)
-                        VALUES(?,?,?,?,NOW(),?)");
+  $ins = $pdo->prepare("
+    INSERT INTO camps_registrations(camp_id,unique_key,ip,status,created_at,values_json)
+    VALUES(?,?,?,?,NOW(),?)
+  ");
   $ins->execute([
     $campId,
     $uniqueKey,
@@ -191,14 +301,14 @@ $ok = false;
 
 if (isset($_GET['ok']) && $_GET['ok'] === '1') {
   $ok = true;
-  $msg = "Sent ✅";
+  $msg = "გაიგზავნა ✅";
 } elseif (isset($_GET['err'])) {
   $e = (string)$_GET['err'];
-  if ($e === 'closed')   $msg = "Registration is closed.";
-  if ($e === 'blocked')  $msg = "You are blocked from registering (PID).";
-  if ($e === 'required') $msg = "forms are not filled. Please fill required fields (*)";
-  if ($e === 'already')  $msg = "Already registered.";
-  if ($e === 'unikey')   $msg = "Form must contain PID or Email or Phone field.";
+  if ($e === 'closed')   $msg = "რეგისტრაცია დახურულია.";
+  if ($e === 'blocked')  $msg = "რეგისტრაცია აკრძალულია (PID ბლოკშია).";
+  if ($e === 'required') $msg = "გთხოვ შეავსო სავალდებულო ველები (*)";
+  if ($e === 'already')  $msg = "ამ მონაცემებით უკვე დარეგისტრირებული ხარ.";
+  if ($e === 'unikey')   $msg = "ფორმაში აუცილებელია PID ან Email ან Phone ველი.";
 }
 
 $campName  = (string)($camp['name'] ?? '');
@@ -229,6 +339,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
       --accent:#60a5fa;
       --good:#22c55e;
       --bad:#ef4444;
+      --warn:#f59e0b;
       --shadow: 0 14px 40px rgba(0,0,0,.32);
       --shadow2: 0 10px 28px rgba(0,0,0,.25);
     }
@@ -283,6 +394,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
     }
     .status.open{border-color: rgba(34,197,94,.70); background: rgba(34,197,94,.10); color:#d1fae5;}
     .status.closed{border-color: rgba(239,68,68,.70); background: rgba(239,68,68,.10); color:#ffe4e6;}
+    .status.upcoming{border-color: rgba(245,158,11,.70); background: rgba(245,158,11,.12); color:#fff7ed;}
 
     .card{
       background: linear-gradient(180deg, rgba(17,28,51,.70), rgba(17,28,51,.52));
@@ -429,7 +541,6 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
       box-shadow: 0 0 0 4px rgba(96,165,250,.12);
     }
 
-    /* if browser makes white bg (autofill) -> black text */
     input:-webkit-autofill,textarea:-webkit-autofill,select:-webkit-autofill{
       -webkit-text-fill-color:#000 !important;
       box-shadow: 0 0 0px 1000px #fff inset !important;
@@ -447,6 +558,9 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
       font-weight:950;
       cursor:pointer;
       transition: transform .15s ease, border-color .15s ease;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
     }
     .btn:hover{transform:translateY(-1px);border-color:rgba(96,165,250,.95)}
     .btn[disabled]{opacity:.55;cursor:not-allowed}
@@ -461,7 +575,6 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
     }
     .small{font-size:.92rem}
 
-    /* client validation */
     .fieldError{
       border-color: rgba(239,68,68,.95) !important;
       box-shadow: 0 0 0 4px rgba(239,68,68,.12) !important;
@@ -476,14 +589,18 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
   <main class="wrap">
 
     <div class="topbar">
-      <!-- ✅ ALWAYS /camps/ (instant) -->
-      <a class="back" id="backBtn" href="/youthagency/camps/">
+      <a class="back" href="/youthagency/camps/">
         <i class="fa-solid fa-arrow-left"></i> ბანაკებზე დაბრუნება
       </a>
 
-      <span class="status <?= $regOpen ? 'open' : 'closed' ?>">
-        <i class="fa-solid <?= $regOpen ? 'fa-circle-check' : 'fa-circle-xmark' ?>"></i>
-        <?= $regOpen ? 'რეგისტრაცია ღიაა' : 'რეგისტრაცია დახურულია' ?>
+      <?php
+        $badgeClass = $regOpen ? 'open' : ($regReason === 'მალე დაიწყება' ? 'upcoming' : 'closed');
+        $badgeText  = $regOpen ? 'რეგისტრაცია ღიაა' : ('რეგისტრაცია დახურულია' . ($regReason !== '' ? ' • ' . $regReason : ''));
+        $badgeIcon  = $regOpen ? 'fa-circle-check' : ($badgeClass==='upcoming' ? 'fa-clock' : 'fa-circle-xmark');
+      ?>
+      <span class="status <?=$badgeClass?>">
+        <i class="fa-solid <?=$badgeIcon?>"></i>
+        <?=h($badgeText)?>
       </span>
     </div>
 
@@ -509,7 +626,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
             <span><i class="fa-solid fa-hashtag"></i> ID: <?=h((string)$campId)?></span>
             <?php if ($closedManual): ?>
               <span>•</span>
-              <span class="muted"><i class="fa-solid fa-lock"></i> Closed</span>
+              <span class="muted"><i class="fa-solid fa-lock"></i> დახურულია (manual)</span>
             <?php endif; ?>
           </div>
         </div>
@@ -520,7 +637,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
       <h2 class="sectionTitle"><i class="fa-regular fa-newspaper"></i> პოსტები</h2>
 
       <?php if (!$posts): ?>
-        <div class="muted" style="margin-top:10px">No posts yet.</div>
+        <div class="muted" style="margin-top:10px">პოსტები ჯერ არ დამატებულა.</div>
       <?php else: ?>
         <?php foreach ($posts as $p): $pid=(int)$p['id']; ?>
           <article class="post">
@@ -531,7 +648,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
 
               <div>
                 <div class="postTitle"><?=h((string)$p['title'])?></div>
-                <div class="muted postDate"><?=h((string)$p['created_at'])?></div>
+                <div class="muted postDate"><?=h(fmtDateTime((string)$p['created_at']))?></div>
               </div>
             </div>
 
@@ -560,11 +677,10 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
         <div class="note <?= $ok ? 'ok' : 'bad' ?>" id="serverMsg"><?=h($msg)?></div>
       <?php endif; ?>
 
-      <!-- ✅ client-side message -->
       <div class="note bad" id="formMsg" style="display:none"></div>
 
       <?php if (!$regOpen): ?>
-        <div class="muted" style="margin-top:10px">Registration is closed.</div>
+        <div class="muted" style="margin-top:10px">რეგისტრაცია დახურულია.</div>
       <?php else: ?>
 
         <form method="post" enctype="multipart/form-data" id="regForm" novalidate>
@@ -610,7 +726,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
                   <input type="text" name="<?=h($inputId)?>" id="<?=h($inputId)?>" placeholder="+995..." data-autofill="<?=h($autofill)?>" <?=$requiredAttr?>>
 
                 <?php elseif ($type === 'pid'): ?>
-                  <input type="text" name="<?=h($inputId)?>" id="<?=h($inputId)?>" placeholder="პირადი ნომერი" data-autofill="pid" <?=$requiredAttr?>>
+                  <input type="text" name="<?=h($inputId)?>" id="<?=h($inputId)?>" placeholder="პირადი ნომერი" inputmode="numeric" data-autofill="pid" <?=$requiredAttr?>>
 
                 <?php elseif ($type === 'file'): ?>
                   <input type="file" name="<?=h($inputId)?>" id="<?=h($inputId)?>" <?=$requiredAttr?>>
@@ -629,8 +745,8 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
             </div>
 
             <button class="btn" type="submit" id="submitBtn" <?= $ok ? 'disabled' : '' ?>>
-              <?= $ok ? 'Sent ✅' : 'გაგზავნა' ?>
-              <i class="fa-solid fa-paper-plane" style="margin-left:8px"></i>
+              <?= $ok ? 'გაიგზავნა ✅' : 'გაგზავნა' ?>
+              <i class="fa-solid fa-paper-plane"></i>
             </button>
           </div>
         </form>
@@ -670,7 +786,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
             });
 
             if (!ok) {
-              showError('forms are not filled. Please fill required fields (*)');
+              showError('გთხოვ შეავსო სავალდებულო ველები (*)');
               const first = form.querySelector('.fieldError');
               if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
             }
@@ -678,24 +794,22 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
             return ok;
           }
 
-          // ✅ prevent submit if missing required
           form.addEventListener('submit', (e) => {
             if (!validateRequired()) {
               e.preventDefault();
               return;
             }
-            // prevent double submit (UX)
+            // prevent double submit
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Sending...';
+            submitBtn.innerHTML = 'იგზავნება... <i class="fa-solid fa-spinner" style="margin-left:8px"></i>';
           });
 
-          // remove red border while typing
           form.querySelectorAll('[required]').forEach(el => {
             el.addEventListener('input', ()=> el.classList.remove('fieldError'));
             el.addEventListener('change', ()=> el.classList.remove('fieldError'));
           });
 
-          // ✅ if ok/err exists, remove it from URL so refresh won't "cache" message
+          // remove ok/err from URL after showing message
           (function(){
             const url = new URL(window.location.href);
             if (url.searchParams.has('ok') || url.searchParams.has('err')) {
@@ -705,15 +819,19 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
             }
           })();
 
-          // PID autofill engine (kept)
+          // PID autofill
           const pidInput = document.querySelector('[data-autofill="pid"]');
           const mapKeys = ["first_name","last_name","birth_date","age","email","phone","address","university","faculty","course"];
 
           async function lookup(pid){
-            const res = await fetch("/youthagency/api/member_lookup.php?pid=" + encodeURIComponent(pid));
-            const j = await res.json().catch(()=>null);
-            if(!j || !j.ok || !j.found) return null;
-            return j.member || null;
+            try{
+              const res = await fetch("/youthagency/api/member_lookup.php?pid=" + encodeURIComponent(pid));
+              const j = await res.json().catch(()=>null);
+              if(!j || !j.ok || !j.found) return null;
+              return j.member || null;
+            }catch(e){
+              return null;
+            }
           }
 
           function fillFields(member){
@@ -729,12 +847,12 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
           if(pidInput){
             pidInput.addEventListener("input", ()=>{
               clearTimeout(t);
-              const pid = pidInput.value.trim();
+              const pid = (pidInput.value || '').replace(/\D+/g,'').trim();
               if(pid.length < 8) return;
               t=setTimeout(async ()=>{
                 const m = await lookup(pid);
                 if(m) fillFields(m);
-              }, 250);
+              }, 260);
             });
           }
         </script>
@@ -750,7 +868,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
     async function inject(id, file) {
       const el = document.getElementById(id);
       if (!el) return;
-      const res = await fetch(file + '?v=1');
+      const res = await fetch(file + (file.includes('?') ? '&' : '?') + 'v=1');
       if (!res.ok) return;
       el.innerHTML = await res.text();
     }
@@ -758,7 +876,7 @@ $campEnd   = fmtDate((string)($camp['end_date'] ?? ''));
     async function loadScript(src) {
       return new Promise((resolve) => {
         const s = document.createElement('script');
-        s.src = src + '?v=1';
+        s.src = src + (src.includes('?') ? '&' : '?') + 'v=1';
         s.onload = resolve;
         s.onerror = resolve;
         document.body.appendChild(s);

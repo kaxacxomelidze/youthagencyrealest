@@ -2,34 +2,71 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../admin/config.php';
-require_once __DIR__ . '/../admin/db.php'; // must provide $pdo (PDO)
+date_default_timezone_set('Asia/Tbilisi');
+
+$pdo = db();
 
 if (!function_exists('h')) {
-  function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-}
-
-$stmt = $pdo->query("SELECT id,name,slug,cover,card_text,start_date,end_date,closed
-                     FROM camps
-                     ORDER BY id DESC
-                     LIMIT 200");
-$camps = $stmt->fetchAll(PDO::FETCH_ASSOC);
-$openCount = 0;
-$closedCount = 0;
-foreach ($camps as $c) {
-  if ((int)($c['closed'] ?? 0) === 1) {
-    $closedCount++;
-  } else {
-    $openCount++;
-  }
+  function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
 
 function fmtDate(?string $d): string {
-  $d = (string)$d;
+  $d = trim((string)$d);
   if ($d === '') return '';
   $ts = strtotime($d);
   if ($ts === false) return $d;
   return date('Y-m-d', $ts);
 }
+
+/**
+ * Convert date string to timestamp
+ * - If "YYYY-MM-DD" => use end-of-day (23:59:59) when $endOfDay=true
+ * - Else => strtotime as-is
+ */
+function dateToTs(?string $raw, bool $endOfDay = false): ?int {
+  $raw = trim((string)$raw);
+  if ($raw === '') return null;
+
+  $ts = strtotime($raw);
+  if ($ts === false) return null;
+
+  if ($endOfDay && preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+    $ts += 86399; // 23:59:59
+  }
+  return $ts;
+}
+
+/**
+ * Status rules:
+ * - closed if admin closed OR end_date passed
+ * - upcoming if start_date is in future AND not closed
+ * - open otherwise
+ */
+function campStatus(array $c): string {
+  $adminClosed = ((int)($c['closed'] ?? 0) === 1);
+
+  $startTs = dateToTs($c['start_date'] ?? null, false);
+  $endTs   = dateToTs($c['end_date'] ?? null, true);
+
+  $now = time();
+
+  $timeClosed = ($endTs !== null && $now > $endTs);
+
+  if ($adminClosed || $timeClosed) return 'closed';
+
+  $upcoming = ($startTs !== null && $startTs > $now);
+  if ($upcoming) return 'upcoming';
+
+  return 'open';
+}
+
+$stmt = $pdo->query("
+  SELECT id,name,slug,cover,card_text,start_date,end_date,closed
+  FROM camps
+  ORDER BY id DESC
+  LIMIT 200
+");
+$camps = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!doctype html>
 <html lang="ka">
@@ -45,7 +82,6 @@ function fmtDate(?string $d): string {
     :root{
       --bg:#0b1220;
 
-      /* richer panel colors */
       --panel: rgba(17, 28, 51, .64);
       --panel2: rgba(17, 28, 51, .42);
 
@@ -53,11 +89,11 @@ function fmtDate(?string $d): string {
       --txt:#e5e7eb;
       --muted:#9ca3af;
 
-      /* accents */
-      --accent:#60a5fa;     /* softer blue */
-      --accent2:#3b82f6;    /* strong blue */
+      --accent:#60a5fa;
+      --accent2:#3b82f6;
       --good:#22c55e;
       --bad:#ef4444;
+      --warn:#f59e0b;
 
       --shadow: 0 14px 40px rgba(0,0,0,.34);
       --shadow2: 0 10px 28px rgba(0,0,0,.26);
@@ -67,8 +103,6 @@ function fmtDate(?string $d): string {
       margin:0;
       color:var(--txt);
       font-family:'Noto Sans Georgian',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-
-      /* nicer background but still classic */
       background:
         radial-gradient(900px 380px at 10% -10%, rgba(96,165,250,.22), transparent 58%),
         radial-gradient(900px 380px at 90% 0%, rgba(34,197,94,.12), transparent 60%),
@@ -77,56 +111,6 @@ function fmtDate(?string $d): string {
 
     .wrap{max-width:1200px;margin:0 auto;padding:22px}
 
-    .top{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-end;
-      gap:16px;
-      flex-wrap:wrap;
-      margin-bottom:18px;
-    }
-
-    .hero-title{
-      margin:0;
-      color:#f8fafc;
-      font-weight:950;
-      letter-spacing:.2px;
-      font-size:1.7rem;
-      display:flex;
-      align-items:center;
-      gap:10px;
-    }
-    .hero-title i{color:rgba(255,255,255,.92)}
-    .hero-sub{
-      margin-top:6px;
-      color:#e0f2fe;
-      color:rgba(229,231,235,.85);
-      font-weight:700;
-      font-size:.98rem;
-      max-width:560px;
-    }
-
-    .stats{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .stat{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:10px 12px;
-      border-radius:14px;
-      border:1px solid rgba(30,42,69,.9);
-      background:rgba(11,18,32,.38);
-      font-weight:900;
-      color:#fff;
-      min-width:140px;
-    }
-    .stat .label{color:var(--muted);font-weight:800;font-size:.82rem}
-    .stat .value{font-size:1.1rem}
-
-    /* Classic filter bar — improved colors/sizes */
     .bar{
       display:flex;
       gap:12px;
@@ -213,7 +197,6 @@ function fmtDate(?string $d): string {
       background: rgba(17,28,51,.45);
     }
 
-    /* Grid & cards — a bit larger and cleaner */
     .grid{
       display:grid;
       grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
@@ -240,9 +223,6 @@ function fmtDate(?string $d): string {
       box-shadow: var(--shadow2);
     }
 
-    .media{
-      position:relative;
-    }
     .cimg{
       width:100%;
       height:190px;
@@ -250,35 +230,10 @@ function fmtDate(?string $d): string {
       display:block;
       filter:saturate(1.05) contrast(1.03);
     }
-    .cimg-fallback{
+    .cimg.placeholder{
       height:190px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:linear-gradient(135deg, rgba(96,165,250,.22), rgba(34,197,94,.12));
-      color:rgba(255,255,255,.9);
-      font-weight:900;
-      letter-spacing:.3px;
-    }
-    .shade{
-      position:absolute;
-      inset:0;
-      background:linear-gradient(180deg, rgba(2,6,23,.0) 30%, rgba(2,6,23,.45) 100%);
-    }
-    .badge{
-      position:absolute;
-      left:12px;
-      bottom:12px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.2);
-      background:rgba(15,23,42,.65);
-      color:#fff;
-      font-weight:900;
-      font-size:.8rem;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
+      background: rgba(11,18,32,.35);
+      border-bottom:1px solid rgba(30,42,69,.95);
     }
 
     .p{padding:14px}
@@ -311,27 +266,6 @@ function fmtDate(?string $d): string {
     }
     .meta i{color:rgba(156,163,175,.95)}
 
-    .card-footer{
-      margin-top:14px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-    }
-    .cta{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:8px 12px;
-      border-radius:999px;
-      border:1px solid rgba(96,165,250,.75);
-      color:#e0f2fe;
-      font-weight:900;
-      font-size:.88rem;
-      background:rgba(96,165,250,.12);
-    }
-
-    /* Status pill — more premium */
     .pill{
       display:inline-flex;
       align-items:center;
@@ -357,8 +291,12 @@ function fmtDate(?string $d): string {
       background: rgba(239,68,68,.10);
       color:#ffe4e6;
     }
+    .pill.upcoming{
+      border-color: rgba(245,158,11,.72);
+      background: rgba(245,158,11,.12);
+      color:#fff7ed;
+    }
 
-    /* empty states */
     .empty{
       margin-top:18px;
       border:1px dashed rgba(148,163,184,.35);
@@ -373,57 +311,15 @@ function fmtDate(?string $d): string {
       .wrap{padding:14px}
       .grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
       .cimg{height:170px}
-    .hero-title{font-size:1.45rem}
+      .cimg.placeholder{height:170px}
     }
   </style>
 </head>
 
 <body>
-
-  <!-- HEADER (injected) -->
   <div id="siteHeaderMount"></div>
 
   <main class="wrap">
-    <div class="top">
-      <div>
-        <div class="hero-title">
-          <i class="fa-solid fa-campground"></i>
-          ბანაკები
-        </div>
-        <div class="hero-sub">
-          აქ ნახავთ მიმდინარე და დაგეგმილ ახალგაზრდულ ბანაკებს. გამოიყენეთ ძიება ან ფილტრი,
-          რათა სწრაფად იპოვოთ თქვენთვის საინტერესო პროგრამა.
-        </div>
-      </div>
-
-      <div class="stats" aria-label="Camp stats">
-        <div class="stat">
-          <div>
-            <div class="label">სულ</div>
-            <div class="value"><?=h((string)count($camps))?></div>
-          </div>
-        </div>
-        <div class="stat">
-          <div>
-            <div class="label">ღია</div>
-            <div class="value" id="statOpen"><?=h((string)$openCount)?></div>
-          </div>
-        </div>
-        <div class="stat">
-          <div>
-            <div class="label">დახურული</div>
-            <div class="value" id="statClosed"><?=h((string)$closedCount)?></div>
-          </div>
-        </div>
-        <div class="stat">
-          <div>
-            <div class="label">შედეგი</div>
-            <div class="value" id="statShown"><?=h((string)count($camps))?></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="bar">
       <div class="search">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -434,10 +330,17 @@ function fmtDate(?string $d): string {
         <div class="btn active" data-filter="all">
           ყველა <span class="count" id="cAll"><?=count($camps)?></span>
         </div>
+
         <div class="btn" data-filter="open">
           <i class="fa-solid fa-circle-check" style="color:var(--good)"></i>
           ღია <span class="count" id="cOpen">0</span>
         </div>
+
+        <div class="btn" data-filter="upcoming">
+          <i class="fa-solid fa-clock" style="color:var(--warn)"></i>
+          მალე <span class="count" id="cUpcoming">0</span>
+        </div>
+
         <div class="btn" data-filter="closed">
           <i class="fa-solid fa-circle-xmark" style="color:var(--bad)"></i>
           დახურული <span class="count" id="cClosed">0</span>
@@ -451,41 +354,45 @@ function fmtDate(?string $d): string {
         <?php
           $id = (int)$c['id'];
           $slug = (string)($c['slug'] ?? '');
+          if ($slug === '') $slug = 'camp-' . $id;
+
           $url = "/youthagency/camps/$id/" . rawurlencode($slug);
-          $closed = (int)$c['closed'] === 1;
 
-          $name = (string)($c['name'] ?? '');
-          $desc = (string)($c['card_text'] ?? '');
+          $name  = (string)($c['name'] ?? '');
+          $desc  = (string)($c['card_text'] ?? '');
           $start = fmtDate((string)($c['start_date'] ?? ''));
-          $end = fmtDate((string)($c['end_date'] ?? ''));
+          $end   = fmtDate((string)($c['end_date'] ?? ''));
           $cover = (string)($c['cover'] ?? '');
-          $status = $closed ? 'closed' : 'open';
 
-          $search = mb_strtolower(trim($name.' '.$desc.' '.$start.' '.$end), 'UTF-8');
+          $status = campStatus($c);
+
+          $statusLabel = ($status === 'closed') ? 'დახურულია' : (($status === 'upcoming') ? 'მალე' : 'ღია');
+
+          $search = mb_strtolower(trim($name.' '.$desc.' '.$start.' '.$end.' '.$statusLabel), 'UTF-8');
         ?>
         <a class="card"
            href="<?=h($url)?>"
            data-status="<?=h($status)?>"
            data-search="<?=h($search)?>">
-          <div class="media">
-            <?php if ($cover !== ''): ?>
-              <img class="cimg" src="<?=h($cover)?>" alt="">
-            <?php else: ?>
-              <div class="cimg-fallback">Youth Camp</div>
-            <?php endif; ?>
-            <div class="shade"></div>
-            <div class="badge">
-              <i class="fa-regular fa-calendar"></i>
-              <?=h($start)?> → <?=h($end)?>
-            </div>
-          </div>
+          <?php if ($cover !== ''): ?>
+            <img class="cimg" src="<?=h($cover)?>" alt="">
+          <?php else: ?>
+            <div class="cimg placeholder"></div>
+          <?php endif; ?>
 
           <div class="p">
             <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
               <div class="name"><?=h($name)?></div>
-              <span class="pill <?=$closed ? 'closed' : 'open'?>">
-                <i class="fa-solid <?=$closed ? 'fa-lock' : 'fa-unlock'?>"></i>
-                <?=$closed ? 'დახურული' : 'ღია'?>
+
+              <span class="pill <?=h($status)?>">
+                <?php if ($status === 'closed'): ?>
+                  <i class="fa-solid fa-lock"></i>
+                <?php elseif ($status === 'upcoming'): ?>
+                  <i class="fa-solid fa-clock"></i>
+                <?php else: ?>
+                  <i class="fa-solid fa-unlock"></i>
+                <?php endif; ?>
+                <?=h($statusLabel)?>
               </span>
             </div>
 
@@ -494,17 +401,9 @@ function fmtDate(?string $d): string {
             <?php endif; ?>
 
             <div class="meta">
-              <span><i class="fa-solid fa-hashtag"></i> <?=h((string)$id)?></span>
+              <span><i class="fa-regular fa-calendar"></i> <?=h($start)?> → <?=h($end)?></span>
               <span>•</span>
-              <span><i class="fa-solid fa-location-dot"></i> ახალგაზრდობის სააგენტო</span>
-            </div>
-
-            <div class="card-footer">
-              <span class="cta">
-                დეტალები
-                <i class="fa-solid fa-arrow-right"></i>
-              </span>
-              <span class="small" style="color:var(--muted);font-weight:800">განაცხადი ონლაინ</span>
+              <span><i class="fa-solid fa-hashtag"></i> <?=h((string)$id)?></span>
             </div>
           </div>
         </a>
@@ -524,26 +423,27 @@ function fmtDate(?string $d): string {
     </div>
   </main>
 
-  <!-- FOOTER (injected) -->
   <div id="siteFooterMount"></div>
 
   <script>
     async function inject(id, file) {
       const el = document.getElementById(id);
-      if (!el) throw new Error(`Mount element not found: #${id}`);
-      const res = await fetch(file + '?v=1');
-      if (!res.ok) throw new Error(`${file} not found. Status: ${res.status}`);
-      el.innerHTML = await res.text();
+      const res = await fetch(file + (file.includes('?') ? '&' : '?') + 'v=1');
+      if (res.ok) el.innerHTML = await res.text();
     }
 
     async function loadScript(src) {
       return new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = src + '?v=1';
+        s.src = src + (src.includes('?') ? '&' : '?') + 'v=1';
         s.onload = resolve;
         s.onerror = () => reject(new Error(`Failed to load script: ${src}`));
         document.body.appendChild(s);
       });
+    }
+
+    function normalizeStr(s){
+      return (s || '').toString().toLowerCase().trim();
     }
 
     function initCampsClassic(){
@@ -555,35 +455,36 @@ function fmtDate(?string $d): string {
 
       const cOpen = document.getElementById('cOpen');
       const cClosed = document.getElementById('cClosed');
-      const statShown = document.getElementById('statShown');
+      const cUpcoming = document.getElementById('cUpcoming');
 
       let active = 'all';
 
       function countStatuses(){
-        let open = 0, closed = 0;
-        cards.forEach(c => (c.dataset.status === 'open') ? open++ : closed++);
+        let open = 0, closed = 0, upcoming = 0;
+        cards.forEach(c => {
+          const st = c.dataset.status;
+          if (st === 'open') open++;
+          else if (st === 'upcoming') upcoming++;
+          else closed++;
+        });
         cOpen.textContent = String(open);
+        cUpcoming.textContent = String(upcoming);
         cClosed.textContent = String(closed);
-        const statOpen = document.getElementById('statOpen');
-        const statClosed = document.getElementById('statClosed');
-        if (statOpen) statOpen.textContent = String(open);
-        if (statClosed) statClosed.textContent = String(closed);
       }
 
       function apply(){
-        const term = (q.value || '').trim().toLowerCase();
+        const term = normalizeStr(q.value);
         let shown = 0;
 
         cards.forEach(c => {
           const okStatus = (active === 'all') ? true : (c.dataset.status === active);
-          const okSearch = term ? (c.dataset.search || '').includes(term) : true;
+          const okSearch = term ? normalizeStr(c.dataset.search).includes(term) : true;
           const show = okStatus && okSearch;
           c.style.display = show ? '' : 'none';
           if (show) shown++;
         });
 
         clientEmpty.style.display = (shown === 0 && cards.length) ? '' : 'none';
-        if (statShown) statShown.textContent = String(shown);
       }
 
       buttons.forEach(b => {
@@ -598,7 +499,7 @@ function fmtDate(?string $d): string {
       let t = null;
       q.addEventListener('input', () => {
         clearTimeout(t);
-        t = setTimeout(apply, 60);
+        t = setTimeout(apply, 70);
       });
 
       countStatuses();
@@ -608,8 +509,10 @@ function fmtDate(?string $d): string {
     (async () => {
       try {
         await inject('siteHeaderMount', '/youthagency/header.html');
-        await loadScript('/youthagency/app.js');
-        if (typeof window.initHeader === 'function') window.initHeader();
+        try{
+          await loadScript('/youthagency/app.js');
+          if (typeof window.initHeader === 'function') window.initHeader();
+        }catch(e){}
 
         await inject('siteFooterMount', '/youthagency/footer.html');
 
@@ -619,6 +522,5 @@ function fmtDate(?string $d): string {
       }
     })();
   </script>
-
 </body>
 </html>

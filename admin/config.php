@@ -43,9 +43,9 @@ if (!defined('DATA_DIR'))   define('DATA_DIR', __DIR__ . '/../data');
 if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', __DIR__ . '/../uploads');
 
 if (!defined('DB_HOST')) define('DB_HOST', '127.0.0.1');
-if (!defined('DB_NAME')) define('DB_NAME', 'youth'); // <-- შენი რეალური DB
-if (!defined('DB_USER')) define('DB_USER', 'root');
-if (!defined('DB_PASS')) define('DB_PASS', '');
+if (!defined('DB_NAME')) define('DB_NAME', 'sspm_test');
+if (!defined('DB_USER')) define('DB_USER', 'sspm_main');
+if (!defined('DB_PASS')) define('DB_PASS', 'themainfirst!@#$');
 
 /**
  * =========================

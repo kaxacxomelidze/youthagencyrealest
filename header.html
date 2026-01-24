@@ -1,24 +1,24 @@
-<!-- header.html (INJECTED PARTIAL) -->
+<!-- /youthagency/header.html -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="/youthagency/assets/header.css">
 
 <header class="site-header" id="siteHeader">
   <div class="header-wrap">
 
+    <!-- Logo -->
     <div class="header-left">
-      <a class="brand" href="/youthagency/index.html">
+      <a class="brand" href="/youthagency/">
         <img src="/youthagency/imgs/youthagency.png" alt="Youth Agency">
       </a>
     </div>
 
-    <nav class="header-nav" aria-label="Main navigation">
+    <!-- Desktop navigation -->
+    <nav class="header-nav">
       <a href="/youthagency/index.html" data-active="/youthagency/" data-i18n="nav.home">მთავარი</a>
+      <a href="/youthagency/main_news/news_index.php" data-active="/youthagency/main_news/" data-i18n="nav.news">სიახლეები</a>
 
-      <a href="/youthagency/main_news/news_index.php" data-active="/main_news/news_index.php" data-i18n="nav.news">სიახლეები</a>
-
-      <!-- აქტივობები dropdown -->
       <div class="nav-item">
-        <button class="nav-trigger" id="activitiesBtn" aria-expanded="false" type="button">
+        <button class="nav-trigger" id="activitiesBtn" type="button">
           <span data-i18n="nav.activities">აქტივობები</span>
           <i class="fa-solid fa-chevron-down"></i>
         </button>
@@ -33,18 +33,19 @@
       <a href="/youthagency/rules/" data-active="/youthagency/rules/" data-i18n="nav.rules">წესები</a>
     </nav>
 
+    <!-- Right side -->
     <div class="header-right">
-      <div class="lang-switch" role="group" aria-label="Language">
-        <span class="lang-icon" aria-hidden="true">
-          <i class="fa-solid fa-globe"></i>
-        </span>
-        <button class="lang-btn" type="button" data-lang="ka" aria-pressed="true">ქართული</button>
-        <button class="lang-btn" type="button" data-lang="en" aria-pressed="false">English</button>
+
+      <!-- Language switch (small) -->
+      <div class="lang-switch">
+        <button class="lang-btn" data-lang="ka">KA</button>
+        <button class="lang-btn" data-lang="en">EN</button>
       </div>
+
       <a href="/youthagency/about/" data-active="/youthagency/about/" data-i18n="nav.about">ჩვენს შესახებ</a>
       <a class="cta" href="/youthagency/contact/" data-active="/youthagency/contact/" data-i18n="nav.contact">კონტაქტი</a>
 
-      <button class="burger" id="burgerBtn" aria-expanded="false" type="button">
+      <button class="burger" id="burgerBtn" type="button">
         <i class="fa-solid fa-bars"></i>
       </button>
     </div>
@@ -54,25 +55,24 @@
   <!-- Mobile menu -->
   <div class="mobile-panel" id="mobilePanel">
     <div class="inner">
+
       <nav>
-        <a href="/youthagency/" data-active="/youthagency/" data-i18n="nav.home">მთავარი</a>
-        <a href="/youthagency/main_news/news_index.php" data-active="/main_news/news_index.php" data-i18n="nav.news">სიახლეები</a>
+        <a href="/youthagency/index.html" data-active="/youthagency/" data-i18n="nav.home">მთავარი</a>
+        <a href="/youthagency/main_news/news_index.php" data-active="/youthagency/main_news/" data-i18n="nav.news">სიახლეები</a>
         <a href="/youthagency/camps/" data-active="/youthagency/camps/" data-i18n="nav.camps">ბანაკები</a>
+        <a href="/youthagency/meetings/" data-active="/youthagency/meetings/" data-i18n="nav.meetings">შეხვედრები</a>
         <a href="/youthagency/grants/grants_index.php" data-active="/youthagency/grants/" data-i18n="nav.grants">საგრანტო</a>
         <a href="/youthagency/rules/" data-active="/youthagency/rules/" data-i18n="nav.rules">წესები</a>
+        <a href="/youthagency/about/" data-active="/youthagency/about/" data-i18n="nav.about">ჩვენს შესახებ</a>
+        <a href="/youthagency/contact/" data-active="/youthagency/contact/" data-i18n="nav.contact">კონტაქტი</a>
       </nav>
 
-      <div class="mobile-actions">
-        <div class="lang-switch mobile" role="group" aria-label="Language">
-          <span class="lang-icon" aria-hidden="true">
-            <i class="fa-solid fa-globe"></i>
-          </span>
-          <button class="lang-btn" type="button" data-lang="ka" aria-pressed="true">ქართული</button>
-          <button class="lang-btn" type="button" data-lang="en" aria-pressed="false">English</button>
-        </div>
-        <a href="/youthagency/about/" data-active="/youthagency/about/" data-i18n="nav.about">ჩვენს შესახებ</a>
-        <a class="cta" href="/youthagency/contact/" data-active="/youthagency/contact/" data-i18n="nav.contact">კონტაქტი</a>
+      <!-- Language switch (mobile small) -->
+      <div class="lang-switch mobile">
+        <button class="lang-btn" data-lang="ka">KA</button>
+        <button class="lang-btn" data-lang="en">EN</button>
       </div>
+
     </div>
   </div>
 </header>

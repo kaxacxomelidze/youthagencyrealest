@@ -1,26 +1,43 @@
+# ==============================
 # /youthagency/.htaccess
+# ==============================
+
 RewriteEngine On
 RewriteBase /youthagency/
 
-# 1) Do NOT rewrite real files/folders
+# 1) Do NOT rewrite real files or folders (css/js/images/php etc.)
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# --- NEWS SEO URLS ---
-# /news/123/some-title -> news_view.php?id=123&slug=some-title
-RewriteRule ^news/([0-9]+)/([^/]+)/?$ news_view.php?id=$1&slug=$2 [L,QSA]
+# ------------------------------
+# HOME (optional clean URL)
+# /youthagency/ -> /youthagency/index.html
+# ------------------------------
+DirectoryIndex index.html index.php
 
-# /news/123/ -> news_view.php?id=123
+# ------------------------------
+# NEWS SEO URLS
+# /youthagency/news/123/some-title -> news_view.php?id=123&slug=some-title
+# /youthagency/news/123 -> news_view.php?id=123
+# ------------------------------
+RewriteRule ^news/([0-9]+)/([^/]+)/?$ news_view.php?id=$1&slug=$2 [L,QSA]
 RewriteRule ^news/([0-9]+)/?$ news_view.php?id=$1 [L,QSA]
 
-# --- CAMPS SEO URLS ---
-RewriteRule ^camps/?$ camps/index.php
-RewriteRule ^camps/([0-9]+)/([^/]+)/?$ camps/view.php?id=$1&slug=$2
+# ------------------------------
+# CAMPS SEO URLS
+# /youthagency/camps -> camps/index.php
+# /youthagency/camps/12/some-title -> camps/view.php?id=12&slug=some-title
+# ------------------------------
+RewriteRule ^camps/?$ camps/index.php [L,QSA]
+RewriteRule ^camps/([0-9]+)/([^/]+)/?$ camps/view.php?id=$1&slug=$2 [L,QSA]
 
-# --- GRANTS SEO URLS ---
+# ------------------------------
+# GRANTS SEO URLS
+# /youthagency/grants -> grants/grants_index.php
+# /youthagency/grants/5/some-title -> grants/grants_view.php?id=5&slug=some-title
+# /youthagency/grants/5 -> grants/grants_view.php?id=5
+# ------------------------------
+RewriteRule ^grants/?$ grants/grants_index.php [L,QSA]
 RewriteRule ^grants/([0-9]+)/([^/]+)/?$ grants/grants_view.php?id=$1&slug=$2 [L,QSA]
 RewriteRule ^grants/([0-9]+)/?$ grants/grants_view.php?id=$1 [L,QSA]
-
-# Grants index
-RewriteRule ^grants/?$ grants/grants_index.php [L,QSA]

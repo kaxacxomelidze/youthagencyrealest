@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../admin/config.php';
+date_default_timezone_set('Asia/Tbilisi');
+
 $pdo = db();
 
 if (!function_exists('h')) {
@@ -29,23 +31,57 @@ function fmt_date(?string $raw): string {
   return date('Y-m-d', $ts);
 }
 
+/**
+ * ✅ returns true if deadline is in past
+ * Rules:
+ * - if deadline is "YYYY-MM-DD" => consider end of day 23:59:59
+ * - if includes time => compare as-is
+ */
+function is_deadline_passed(?string $deadline): bool {
+  $deadlineRaw = trim((string)$deadline);
+  if ($deadlineRaw === '') return false;
+
+  $ts = strtotime($deadlineRaw);
+  if (!$ts) return false;
+
+  // If only date is provided, treat deadline as end of that day
+  if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $deadlineRaw)) {
+    $ts += 86399; // 23:59:59
+  }
+  return time() > $ts;
+}
+
 $applyDefault = "/youthagency/grants/grants_apply.php";
 
 $page    = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 9;
 $offset  = ($page - 1) * $perPage;
 
-$stCount = $pdo->query("SELECT COUNT(*) FROM grants WHERE is_active=1");
+/**
+ * ✅ We only show active grants. (same as before)
+ * If you ever want to show closed too, remove status filter in SQL.
+ */
+$where = "WHERE is_active=1";
+
+/**
+ * ✅ Count items for pagination (must match list query)
+ */
+$stCount = $pdo->query("SELECT COUNT(*) FROM grants $where");
 $total = (int)$stCount->fetchColumn();
 $totalPages = max(1, (int)ceil($total / $perPage));
 
+/**
+ * ✅ List items
+ */
 $st = $pdo->prepare("
-  SELECT id,title,slug,description,body,deadline,status,apply_url
+  SELECT id,title,slug,description,body,deadline,status,apply_url,sort_order
   FROM grants
-  WHERE is_active=1
+  $where
   ORDER BY sort_order ASC, deadline ASC, id DESC
-  LIMIT $perPage OFFSET $offset
+  LIMIT :limit OFFSET :offset
 ");
+$st->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$st->bindValue(':offset', $offset, PDO::PARAM_INT);
 $st->execute();
 $items = $st->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -62,10 +98,7 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
 
   <style>
     :root{
-      /* REQUIRED BG */
       --bg:#151A2C;
-
-      /* STRICT NEUTRALS */
       --panel:#1B2238;
       --panel2:#1A2034;
       --card:#1C2340;
@@ -86,7 +119,6 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
       --shadow2: 0 10px 26px rgba(0,0,0,.22);
       --focus: 0 0 0 4px rgba(255,255,255,.10);
 
-      /* ✅ STATUS COLORS (YOUR RULE) */
       --okBg: rgba(46, 204, 113, .18);
       --okBd: rgba(46, 204, 113, .45);
       --okTx: #BFF3D1;
@@ -99,14 +131,13 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
     *{box-sizing:border-box}
     body{
       margin:0;
-      background: var(--bg) !important; /* FORCE */
+      background: var(--bg) !important;
       color: var(--text);
       font-family:"Noto Sans Georgian", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
 
     .wrap{max-width:1180px;margin:0 auto;padding:26px 18px 70px;}
 
-    /* HERO (no gradients, clean panel) */
     .hero{
       border:1px solid var(--line);
       border-radius:20px;
@@ -151,7 +182,6 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
     .btn:active{ transform: translateY(1px); }
     .btn:focus{ outline:none; box-shadow: var(--focus); }
 
-    /* Head row */
     .head{
       margin:18px 0 12px;
       display:flex;
@@ -183,12 +213,10 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
     }
     .counter b{ color: var(--text); }
 
-    /* GRID */
     .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
     @media(max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:640px){.grid{grid-template-columns:1fr}}
 
-    /* CARD */
     .card{
       border:1px solid var(--line);
       border-radius:var(--radius);
@@ -220,7 +248,6 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
       line-height:1.28;
     }
 
-    /* ✅ STATUS PILL (green if current, red otherwise) */
     .pill{
       font-size:12px;
       font-weight:950;
@@ -285,7 +312,6 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
     .details:hover{ border-color: var(--line2); background: rgba(255,255,255,.10); }
     .details:focus{ outline:none; box-shadow: var(--focus); }
 
-    /* Pager */
     .pager{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
     .pager a{
       padding:9px 12px;
@@ -342,9 +368,14 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
       <section class="grid">
         <?php foreach($items as $g): ?>
           <?php
-            $isClosed = (($g['status'] ?? 'current') === 'closed');
-            $statusLabel = $isClosed ? 'დახურული' : 'მიმდინარე';
-            $pillClass = $isClosed ? 'closed' : 'current';
+            // ✅ CLOSED if admin closed OR deadline passed
+            $adminClosed = (strtolower(trim((string)($g['status'] ?? ''))) === 'closed');
+            $timeClosed  = is_deadline_passed((string)($g['deadline'] ?? ''));
+
+            $isClosed = ($adminClosed || $timeClosed);
+
+            $statusLabel = $isClosed ? 'დახურულია' : 'მიმდინარე';
+            $pillClass   = $isClosed ? 'closed' : 'current';
 
             $descSrc = (string)($g['description'] ?? '');
             if ($descSrc === '' && !empty($g['body'])) $descSrc = (string)$g['body'];
@@ -368,7 +399,8 @@ $items = $st->fetchAll(PDO::FETCH_ASSOC);
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <span class="small">
                   <i class="fa-regular fa-calendar"></i>
-                  ვადა: <?=h(fmt_date((string)($g['deadline'] ?? '')))?></span>
+                  ვადა: <?=h(fmt_date((string)($g['deadline'] ?? '')))?>
+                </span>
               </div>
 
               <a class="details" href="<?=h($url)?>">დეტალურად</a>
