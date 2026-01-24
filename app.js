@@ -148,6 +148,7 @@
       'campsView.submit': 'გაგზავნა',
       'campsView.errorRequired': 'გთხოვ შეავსო სავალდებულო ველები (*)',
       'campsView.submitting': 'იგზავნება...'
+      'newsIndex.paginationAria': 'გვერდები'
     },
 
     en: {
@@ -287,6 +288,7 @@
       'campsView.submit': 'Submit',
       'campsView.errorRequired': 'Please fill the required fields (*)',
       'campsView.submitting': 'Submitting...'
+      'newsIndex.paginationAria': 'Pagination'
     }
   };
 
@@ -526,6 +528,10 @@
     });
 
     // Language init + buttons
+    const savedLang = getStoredLanguage();
+    applyTranslations(savedLang);
+    initTranslationObserver();
+
     headerRoot.querySelectorAll('.lang-btn[data-lang]').forEach((btn) => {
       btn.addEventListener('click', () => {
         setLanguage(btn.getAttribute('data-lang') || 'ka');

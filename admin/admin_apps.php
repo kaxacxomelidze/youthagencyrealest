@@ -175,6 +175,7 @@ th{color:rgba(207,233,255,.92);font-size:12px;font-weight:900}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;padding:12px;z-index:50}
 .modal.show{display:flex}
 .box{width:min(1560px,98vw);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:98vh;display:flex;flex-direction:column}
+.box{width:min(1180px,100%);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:92vh;display:flex;flex-direction:column}
 .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .close{width:44px;height:44px;border-radius:14px}
 
@@ -182,6 +183,8 @@ th{color:rgba(207,233,255,.92);font-size:12px;font-weight:900}
 
 .grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px}
 @media(max-width:1200px){.grid2{grid-template-columns:1fr}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:980px){.grid2{grid-template-columns:1fr}}
 
 hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 
@@ -207,17 +210,24 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .answersMeta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .answersMeta input{max-width:260px}
 .answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;max-height:75vh;overflow:auto;padding-right:4px}
+.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;max-height:520px;overflow:auto;padding-right:4px}
+.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .answerCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
 .answerLabel{font-size:12px;color:rgba(207,233,255,.92);font-weight:900}
 .answerValue{font-weight:800;margin-top:6px;white-space:pre-wrap;word-break:break-word}
 .answerMeta{font-size:11px;color:var(--muted);margin-top:6px}
 
 .uploadsGrid{display:grid;gap:10px;max-height:55vh;overflow:auto;padding-right:4px}
+.uploadsGrid{display:grid;gap:10px;max-height:320px;overflow:auto;padding-right:4px}
 .uploadCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
 .uploadCard .mini{margin-top:6px}
 .uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 .uploadCard .fileMeta b{word-break:break-word}
 .uploadActions{display:flex;gap:8px;flex-wrap:wrap}
+.uploadsGrid{display:grid;gap:10px}
+.uploadCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
+.uploadCard .mini{margin-top:6px}
+.uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 
 .rawToggle{border:1px dashed var(--line);border-radius:12px;padding:8px}
 .rawToggle summary{cursor:pointer;font-weight:900}
@@ -357,6 +367,47 @@ a.dl:hover{opacity:.9}
           <div class="summaryValue" id="amStatusText">—</div>
           <div class="summaryMeta small" id="amTimeline"></div>
         </div>
+    <div class="summaryGrid">
+      <div class="summaryCard">
+        <div class="summaryLabel">გრანტი</div>
+        <div class="summaryValue" id="amGrantTitle">—</div>
+        <div class="summaryMeta small" id="amGrantMeta"></div>
+      </div>
+      <div class="summaryCard">
+        <div class="summaryLabel">განმცხადებელი</div>
+        <div class="summaryValue" id="amApplicantName">—</div>
+        <div class="summaryMeta small" id="amApplicantMeta"></div>
+      </div>
+      <div class="summaryCard">
+        <div class="summaryLabel">სტატუსი</div>
+        <div class="summaryValue" id="amStatusText">—</div>
+        <div class="summaryMeta small" id="amTimeline"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="answersHeader">
+          <b>ფორმის პასუხები</b>
+          <div class="answersMeta">
+            <input id="amSearch" placeholder="ძებნა პასუხებში..." oninput="filterPretty()">
+            <span class="pill" id="amAnswerCount">0</span>
+          </div>
+        </div>
+
+        <div id="amPretty" class="answerGrid"></div>
+
+        <div id="amUploadsWrap" style="display:none;margin-top:14px">
+          <hr>
+          <h2>ატვირთული ფაილები</h2>
+          <div class="mini">uploads + ასევე form_data-ში აღმოჩენილი ფაილები.</div>
+          <div id="amUploads" class="uploadsGrid"></div>
+        </div>
+        <div class="summaryCard">
+          <div class="summaryLabel">სტატუსი</div>
+          <div class="summaryValue" id="amStatusText">—</div>
+          <div class="summaryMeta small" id="amTimeline"></div>
+        </div>
       </div>
 
       <div class="grid2">
@@ -395,6 +446,14 @@ a.dl:hover{opacity:.9}
                 <tbody id="amBudgetBody"></tbody>
               </table>
             </div>
+        <div style="margin-top:14px">
+          <hr>
+          <details class="rawToggle">
+            <summary>RAW JSON (სრული)</summary>
+            <pre id="amData" class="small mono" style="white-space:pre-wrap;margin:8px 0 0 0"></pre>
+          </details>
+        </div>
+      </div>
 
             <div class="row" style="margin-top:10px;justify-content:space-between;align-items:center">
               <div></div>
@@ -434,6 +493,12 @@ a.dl:hover{opacity:.9}
           <div style="height:10px"></div>
           <label class="small">ადმინის შენიშვნა</label>
           <textarea id="amNote" oninput="saveAppMetaSoon()"></textarea>
+
+          <hr>
+          <div class="small">
+            ⚠️ წაშლა არის <b>soft-delete</b> (ფაილები არ იშლება).
+          </div>
+
 
           <hr>
           <div class="small">
@@ -1071,6 +1136,20 @@ function renderPretty(formData, app){
     `;
   }).join("");
 
+    rows.push({label, value: v, rawKey: kk});
+  }
+
+  box.innerHTML = rows.map(row=>{
+    const showMeta = row.rawKey && !looksLikeFieldKey(row.rawKey) && row.rawKey !== row.label;
+    return `
+      <div class="answerCard" data-label="${escAttr(row.label)}" data-key="${escAttr(row.rawKey)}">
+        <div class="answerLabel">${esc(row.label)}</div>
+        <div class="answerValue">${esc(row.value || "—")}</div>
+        ${showMeta ? `<div class="answerMeta">path: ${esc(row.rawKey)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+
   if(countEl){
     countEl.dataset.total = String(rows.length);
     countEl.textContent = String(rows.length);
@@ -1319,6 +1398,7 @@ async function openApp(id, grantIdHint=0){
     renderUploads(a.uploads || [], fd, Number(a.grant_id || 0));
     const budgetRowsHint = extractBudgetRowsFromResolved(a.form_data_resolved || []);
     showBudgetInModal(fd, budgetRowsHint);
+    showBudgetInModal(fd);
 
     document.getElementById('appModal').classList.add('show');
   }catch(e){
