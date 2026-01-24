@@ -174,13 +174,13 @@ th{color:rgba(207,233,255,.92);font-size:12px;font-weight:900}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;padding:12px;z-index:50}
 .modal.show{display:flex}
-.box{width:min(1400px,98vw);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:96vh;display:flex;flex-direction:column}
+.box{width:min(1560px,98vw);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:98vh;display:flex;flex-direction:column}
 .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .close{width:44px;height:44px;border-radius:14px}
 
 .modal-body{overflow:auto;padding-right:4px;flex:1}
 
-.grid2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:12px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px}
 @media(max-width:1200px){.grid2{grid-template-columns:1fr}}
 
 hr{border:0;border-top:1px solid var(--line);margin:12px 0}
@@ -206,13 +206,13 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .answersHeader{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px}
 .answersMeta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .answersMeta input{max-width:260px}
-.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;max-height:60vh;overflow:auto;padding-right:4px}
+.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;max-height:75vh;overflow:auto;padding-right:4px}
 .answerCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
 .answerLabel{font-size:12px;color:rgba(207,233,255,.92);font-weight:900}
 .answerValue{font-weight:800;margin-top:6px;white-space:pre-wrap;word-break:break-word}
 .answerMeta{font-size:11px;color:var(--muted);margin-top:6px}
 
-.uploadsGrid{display:grid;gap:10px;max-height:40vh;overflow:auto;padding-right:4px}
+.uploadsGrid{display:grid;gap:10px;max-height:55vh;overflow:auto;padding-right:4px}
 .uploadCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
 .uploadCard .mini{margin-top:6px}
 .uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
@@ -930,14 +930,14 @@ function deepFindBudgetRows(obj, depth=0){
   }
   return null;
 }
-function showBudgetInModal(formData){
+function showBudgetInModal(formData, rowsHint=null){
   const wrap = document.getElementById("amBudgetWrap");
   const body = document.getElementById("amBudgetBody");
   const totalEl = document.getElementById("amBudgetTotal");
   if(!wrap || !body || !totalEl) return;
 
-  const rows = deepFindBudgetRows(formData);
-  if(!rows || !rows.length){
+  const rows = Array.isArray(rowsHint) ? rowsHint : deepFindBudgetRows(formData);
+  if(!rows){
     wrap.style.display = "none";
     body.innerHTML = "";
     totalEl.textContent = "0";
@@ -965,6 +965,16 @@ function showBudgetInModal(formData){
 
   totalEl.textContent = fmtMoney(total);
   wrap.style.display = "block";
+}
+
+function extractBudgetRowsFromResolved(resolved){
+  if(!Array.isArray(resolved)) return null;
+  for(const row of resolved){
+    if(!row || row.type !== "budget_table") continue;
+    const val = parseJsonMaybe(row.value);
+    if(val && typeof val === "object" && Array.isArray(val.rows)) return val.rows;
+  }
+  return null;
 }
 
 /* Pretty view with label mapping */
@@ -1307,7 +1317,8 @@ async function openApp(id, grantIdHint=0){
     renderApplicantTypePill(fd);
     renderPretty(fd, a);
     renderUploads(a.uploads || [], fd, Number(a.grant_id || 0));
-    showBudgetInModal(fd);
+    const budgetRowsHint = extractBudgetRowsFromResolved(a.form_data_resolved || []);
+    showBudgetInModal(fd, budgetRowsHint);
 
     document.getElementById('appModal').classList.add('show');
   }catch(e){
