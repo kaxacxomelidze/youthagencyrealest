@@ -648,13 +648,6 @@ function getSubmissionMeta(formData){
   if(!meta) return null;
   return (typeof meta === "string") ? parseJsonMaybe(meta) : meta;
 }
-
-function getSubmissionMeta(formData){
-  if(!formData || typeof formData !== "object") return null;
-  const meta = formData.__meta;
-  if(!meta) return null;
-  return (typeof meta === "string") ? parseJsonMaybe(meta) : meta;
-}
 async function ensureFieldLabels(grantId){
   grantId = Number(grantId || 0);
   if(!grantId) return;
