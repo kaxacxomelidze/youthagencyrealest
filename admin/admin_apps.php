@@ -207,6 +207,7 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .answersMeta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .answersMeta input{max-width:260px}
 .answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;max-height:520px;overflow:auto;padding-right:4px}
+.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .answerCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
 .answerLabel{font-size:12px;color:rgba(207,233,255,.92);font-weight:900}
 .answerValue{font-weight:800;margin-top:6px;white-space:pre-wrap;word-break:break-word}
@@ -218,6 +219,10 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 .uploadCard .fileMeta b{word-break:break-word}
 .uploadActions{display:flex;gap:8px;flex-wrap:wrap}
+.uploadsGrid{display:grid;gap:10px}
+.uploadCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
+.uploadCard .mini{margin-top:6px}
+.uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 
 .rawToggle{border:1px dashed var(--line);border-radius:12px;padding:8px}
 .rawToggle summary{cursor:pointer;font-weight:900}
@@ -351,6 +356,41 @@ a.dl:hover{opacity:.9}
           <div class="summaryLabel">განმცხადებელი</div>
           <div class="summaryValue" id="amApplicantName">—</div>
           <div class="summaryMeta small" id="amApplicantMeta"></div>
+    <div class="summaryGrid">
+      <div class="summaryCard">
+        <div class="summaryLabel">გრანტი</div>
+        <div class="summaryValue" id="amGrantTitle">—</div>
+        <div class="summaryMeta small" id="amGrantMeta"></div>
+      </div>
+      <div class="summaryCard">
+        <div class="summaryLabel">განმცხადებელი</div>
+        <div class="summaryValue" id="amApplicantName">—</div>
+        <div class="summaryMeta small" id="amApplicantMeta"></div>
+      </div>
+      <div class="summaryCard">
+        <div class="summaryLabel">სტატუსი</div>
+        <div class="summaryValue" id="amStatusText">—</div>
+        <div class="summaryMeta small" id="amTimeline"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="answersHeader">
+          <b>ფორმის პასუხები</b>
+          <div class="answersMeta">
+            <input id="amSearch" placeholder="ძებნა პასუხებში..." oninput="filterPretty()">
+            <span class="pill" id="amAnswerCount">0</span>
+          </div>
+        </div>
+
+        <div id="amPretty" class="answerGrid"></div>
+
+        <div id="amUploadsWrap" style="display:none;margin-top:14px">
+          <hr>
+          <h2>ატვირთული ფაილები</h2>
+          <div class="mini">uploads + ასევე form_data-ში აღმოჩენილი ფაილები.</div>
+          <div id="amUploads" class="uploadsGrid"></div>
         </div>
         <div class="summaryCard">
           <div class="summaryLabel">სტატუსი</div>
@@ -395,6 +435,14 @@ a.dl:hover{opacity:.9}
                 <tbody id="amBudgetBody"></tbody>
               </table>
             </div>
+        <div style="margin-top:14px">
+          <hr>
+          <details class="rawToggle">
+            <summary>RAW JSON (სრული)</summary>
+            <pre id="amData" class="small mono" style="white-space:pre-wrap;margin:8px 0 0 0"></pre>
+          </details>
+        </div>
+      </div>
 
             <div class="row" style="margin-top:10px;justify-content:space-between;align-items:center">
               <div></div>
@@ -1046,8 +1094,7 @@ function renderPretty(formData, app){
     if(seen.has(kk)) continue;
     seen.add(kk);
     const label = resolveLabelForKey(grantId, kk);
-    const normalizedValue = normalizeAnswerValue(label, v);
-    rows.push({label, value: normalizedValue, rawKey: kk});
+    rows.push({label, value: v, rawKey: kk});
   }
 
   box.innerHTML = rows.map(row=>{

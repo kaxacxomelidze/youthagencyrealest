@@ -148,6 +148,7 @@
       'campsView.submit': 'გაგზავნა',
       'campsView.errorRequired': 'გთხოვ შეავსო სავალდებულო ველები (*)',
       'campsView.submitting': 'იგზავნება...'
+      'newsIndex.paginationAria': 'გვერდები'
     },
 
     en: {
@@ -287,6 +288,7 @@
       'campsView.submit': 'Submit',
       'campsView.errorRequired': 'Please fill the required fields (*)',
       'campsView.submitting': 'Submitting...'
+      'newsIndex.paginationAria': 'Pagination'
     }
   };
 
