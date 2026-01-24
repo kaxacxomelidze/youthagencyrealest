@@ -262,6 +262,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="fa-solid fa-envelope"></i>
             <span data-i18n="contact.emailInfo">info@youth.ge</span>
           </div>
+        <h2 data-i18n="contact.infoTitle">საკონტაქტო ინფორმაცია</h2>
+        <div class="info-row">
+          <i class="fa-solid fa-location-dot"></i>
+          <span data-i18n="contact.address">ვაჟა ფშაველას ქ. #76</span>
+        </div>
+        <div class="info-row">
+          <i class="fa-solid fa-phone"></i>
+          <span data-i18n="contact.phoneInfo">032 230 51 65</span>
+        </div>
+        <div class="info-row">
+          <i class="fa-solid fa-envelope"></i>
+          <span data-i18n="contact.emailInfo">info@youth.ge</span>
         </div>
       </div>
     </section>

@@ -253,6 +253,8 @@ $payload = [
   <div class="page-shell">
     <div class="wrap">
       <div class="banner">
+  <div class="wrap">
+    <div class="banner">
       <div>
         <h1><?= h((string)$grant['title']) ?></h1>
         <p><?= h((string)($grant['description'] ?? '')) ?></p>
