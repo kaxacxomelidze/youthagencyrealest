@@ -950,10 +950,28 @@ function findBudgetAmountKey(rowObj){
   const byName = keys.find(k => /(^|_)(amount|sum|total|price|cost)(_|$)|თანხ/i.test(String(k)));
   if(byName) return byName;
   const byNumeric = keys.find(k => {
-    const v = Number(rowObj[k]);
-    return !Number.isNaN(v) && Number.isFinite(v);
+    const v = parseMoneyLikeNumber(rowObj[k]);
+    return v !== null;
   });
   return byNumeric || "";
+}
+
+function parseMoneyLikeNumber(v){
+  if(v === null || v === undefined) return null;
+  if(typeof v === "number") return Number.isFinite(v) ? v : null;
+  if(typeof v === "string"){
+    const raw = v.trim();
+    if(!raw) return null;
+    const normalized = raw
+      .replace(/\s+/g, "")
+      .replace(/₾|₺|\$/g, "")
+      .replace(/,/g, "")
+      .replace(/[^0-9.\-]/g, "");
+    if(!normalized || normalized === "-" || normalized === ".") return null;
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 function normalizeBudgetRow(rowObj){
@@ -961,7 +979,7 @@ function normalizeBudgetRow(rowObj){
   if(!rowObj || typeof rowObj !== "object") return null;
 
   const amountKey = findBudgetAmountKey(rowObj);
-  const amount = amountKey ? Number(rowObj[amountKey] ?? 0) : 0;
+  const amount = amountKey ? (parseMoneyLikeNumber(rowObj[amountKey]) ?? 0) : 0;
 
   const keys = Object.keys(rowObj).filter(k => String(k) !== "__meta");
   const catKey = keys.find(k => /(^|_)(cat|category|item|name|title)(_|$)|კატეგ|დასახელებ/i.test(String(k)));
@@ -1091,7 +1109,8 @@ function deepFindBudgetRows(obj, depth=0, grantId=0){
 
   // case: array of rows
   if(Array.isArray(obj)){
-    if(obj.some(x => looksLikeBudgetRow(parseJsonMaybe(x)))) return obj;
+    const directRows = rowsFromBudgetValue(obj);
+    if(directRows) return directRows;
     for(const v of obj){
       const r = deepFindBudgetRows(v, depth+1, grantId);
       if(r) return r;
@@ -1184,7 +1203,12 @@ function extractBudgetRowsFromResolved(resolved){
   if(!Array.isArray(resolved)) return null;
   for(const row of resolved){
     const rowType = String(row?.type || "").toLowerCase();
-    if(!row || (!rowType.includes("budget") && rowType !== "budget_table")) continue;
+    const rowKey = String(row?.key || "").toLowerCase();
+    const keyBudget = rowKey.startsWith("field_")
+      ? isBudgetFieldType(fieldTypeForKey(Number(window.__activeGrantIdForBudget || 0), rowKey))
+      : false;
+
+    if(!row || (!rowType.includes("budget") && rowType !== "budget_table" && !keyBudget)) continue;
     const val = parseJsonMaybe(row.value);
     const rows = rowsFromBudgetValue(val);
     if(rows) return rows;
