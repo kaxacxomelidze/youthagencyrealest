@@ -252,6 +252,8 @@ $payload = [
 </head>
 
 <body>
+  <div id="siteHeaderMount"></div>
+
   <div class="wrap">
     <div class="banner">
       <div>
@@ -1367,20 +1369,29 @@ function bindFields(activeDbStep, fields, idx, isFiles){
   </script>
 
   <script>
-    async function injectFooter() {
-      const el = document.getElementById('siteFooterMount');
+    async function inject(id, file) {
+      const el = document.getElementById(id);
       if (!el) return;
-      const res = await fetch('/youthagency/footer.html?v=2');
-      if (res.ok) el.innerHTML = await res.text();
+      const res = await fetch(file + (file.includes('?') ? '&' : '?') + 'v=2');
+      if (!res.ok) return;
+      el.innerHTML = await res.text();
     }
+
+    async function loadScript(src) {
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = src + (src.includes('?') ? '&' : '?') + 'v=2';
+        s.onload = resolve;
+        s.onerror = resolve;
+        document.body.appendChild(s);
+      });
+    }
+
     (async () => {
-      const s = document.createElement('script');
-      s.src = '/youthagency/app.js?v=2';
-      s.onload = () => {
-        if (typeof window.initHeader === 'function') window.initHeader();
-      };
-      document.body.appendChild(s);
-      await injectFooter();
+      await inject('siteHeaderMount', '/youthagency/header.html');
+      await loadScript('/youthagency/app.js');
+      if (typeof window.initHeader === 'function') window.initHeader();
+      await inject('siteFooterMount', '/youthagency/footer.html');
     })();
   </script>
 </body>
