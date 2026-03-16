@@ -1164,6 +1164,14 @@ function resolveLabelForKey(grantId, key){
   return k;
 }
 
+function valueToDisplayText(v){
+  if(v === null || v === undefined) return "—";
+  if(typeof v === "boolean") return v ? "true" : "false";
+  if(typeof v === "number") return Number.isFinite(v) ? String(v) : "—";
+  const txt = String(v);
+  return txt.trim() === "" ? "—" : txt;
+}
+
 function renderPretty(formData, app){
   const box = document.getElementById("amPretty");
   if(!box) return;
@@ -1185,7 +1193,7 @@ function renderPretty(formData, app){
 
     const label = resolveLabelForKey(grantId, kk);
     const normalizedValue = normalizeAnswerValue(label, v);
-    rows.push({label, value: normalizedValue, rawKey: kk});
+    rows.push({label, value: valueToDisplayText(normalizedValue), rawKey: kk});
   }
 
   box.innerHTML = rows.map(row=>{
@@ -1193,7 +1201,7 @@ function renderPretty(formData, app){
     return `
       <div class="answerCard" data-label="${escAttr(row.label)}" data-key="${escAttr(row.rawKey)}">
         <div class="answerLabel">${esc(row.label)}</div>
-        <div class="answerValue">${esc(row.value || "—")}</div>
+        <div class="answerValue">${esc(row.value)}</div>
         ${showMeta ? `<div class="answerMeta">path: ${esc(row.rawKey)}</div>` : ""}
       </div>
     `;
