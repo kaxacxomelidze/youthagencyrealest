@@ -3,6 +3,16 @@ require_once __DIR__ . '/config.php';
 require_login();
 $pdo = db();
 
+// --------------------------
+// Admin UI language (cookie)
+// --------------------------
+$lang = (($_COOKIE['lang'] ?? 'ka') === 'en') ? 'en' : 'ka';
+
+function t(string $ka, string $en): string {
+  global $lang;
+  return $lang === 'en' ? $en : $ka;
+}
+
 function has_col(PDO $pdo, string $table, string $col): bool {
   $table = preg_replace('/[^a-zA-Z0-9_]+/', '', $table);
   $col   = preg_replace('/[^a-zA-Z0-9_]+/', '', $col);
@@ -51,6 +61,7 @@ function saveUpload(string $tmp, string $folder, string $prefix, string $mime): 
 
 $id = (int)($_GET['id'] ?? 0);
 ensure_news_i18n($pdo);
+
 $stmt = $pdo->prepare("SELECT * FROM news WHERE id=? LIMIT 1");
 $stmt->execute([$id]);
 $n = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -75,15 +86,15 @@ if (isset($_GET['delimg'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check($_POST['csrf'] ?? '');
 
-  $title  = trim($_POST['title'] ?? '');
+  $title     = trim($_POST['title'] ?? '');
   $title_en  = trim($_POST['title_en'] ?? '');
-  $body   = trim($_POST['body'] ?? '');
+  $body      = trim($_POST['body'] ?? '');
   $body_en   = trim($_POST['body_en'] ?? '');
-  $order  = (int)($_POST['order'] ?? 0);
-  $active = !empty($_POST['is_active']) ? 1 : 0;
+  $order     = (int)($_POST['order'] ?? 0);
+  $active    = !empty($_POST['is_active']) ? 1 : 0;
 
   if ($title === '') {
-    $error = 'Title is required.';
+    $error = t('სათაური სავალდებულოა.', 'Title is required.');
   } else {
     try {
       $slug = slugify($title);
@@ -98,9 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
 
       $hasTitleEn = has_col($pdo, 'news', 'title_en');
-      $hasBodyEn = has_col($pdo, 'news', 'body_en');
-      $set = "title=?, slug=?, body=?, image_path=?, sort_order=?, is_active=?";
+      $hasBodyEn  = has_col($pdo, 'news', 'body_en');
+
+      $set  = "title=?, slug=?, body=?, image_path=?, sort_order=?, is_active=?";
       $vals = [$title, $slug, ($body !== '' ? $body : null), $image_path, $order, $active];
+
       if ($hasTitleEn) {
         $set .= ", title_en=?";
         $vals[] = ($title_en !== '' ? $title_en : null);
@@ -109,12 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $set .= ", body_en=?";
         $vals[] = ($body_en !== '' ? $body_en : null);
       }
+
       $vals[] = $id;
-      $pdo->prepare("
-        UPDATE news
-        SET {$set}
-        WHERE id=?
-      ")->execute($vals);
+
+      $pdo->prepare("UPDATE news SET {$set} WHERE id=?")->execute($vals);
 
       // add gallery images (optional)
       if (!empty($_FILES['gallery']['tmp_name'][0])) {
@@ -140,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 
-// reload current row (optional but nice)
+// reload current row
 $stmt = $pdo->prepare("SELECT * FROM news WHERE id=? LIMIT 1");
 $stmt->execute([$id]);
 $n = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -159,14 +170,22 @@ $slug = trim((string)($n['slug'] ?? ''));
 if ($slug === '' || $slug === '-' || $slug === 'news') $slug = 'news-' . $id;
 $open = "/youthagency/news/" . $id . "/" . $slug;
 
-$titlePage = 'Edit News';
+$titlePage = t('სიახლის რედაქტირება', 'Edit News');
 ob_start();
 ?>
-
 <div class="card">
-  <a class="btn" href="news.php">← Back</a>
-  <a class="btn" target="_blank" href="<?=h($open)?>">Open public page</a>
-  <h3 style="margin:12px 0">Edit News</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <a class="btn" href="news.php">← <?=h(t('უკან', 'Back'))?></a>
+    <a class="btn" target="_blank" href="<?=h($open)?>"><?=h(t('საჯარო გვერდის ნახვა', 'Open public page'))?></a>
+
+    <!-- optional quick language buttons for admin -->
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <a class="btn" href="?id=<?=h($id)?>" onclick="document.cookie='lang=ka; path=/; max-age=31536000; SameSite=Lax'">KA</a>
+      <a class="btn" href="?id=<?=h($id)?>" onclick="document.cookie='lang=en; path=/; max-age=31536000; SameSite=Lax'">EN</a>
+    </div>
+  </div>
+
+  <h3 style="margin:12px 0"><?=h($titlePage)?></h3>
 
   <?php if($error): ?>
     <div style="color:#ef4444;margin-bottom:10px"><?=h($error)?></div>
@@ -175,46 +194,46 @@ ob_start();
   <form method="post" enctype="multipart/form-data" style="display:grid;gap:10px;max-width:720px">
     <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
 
-    <label class="muted">Title *</label>
+    <label class="muted"><?=h(t('სათაური *', 'Title *'))?></label>
     <input name="title" value="<?=h($n['title'] ?? '')?>" style="padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(17,28,51,.55);color:var(--txt)">
 
-    <label class="muted">Title (EN)</label>
+    <label class="muted"><?=h(t('სათაური (EN)', 'Title (EN)'))?></label>
     <input name="title_en" value="<?=h($n['title_en'] ?? '')?>" style="padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(17,28,51,.55);color:var(--txt)">
 
-    <label class="muted">Body</label>
+    <label class="muted"><?=h(t('ტექსტი', 'Body'))?></label>
     <textarea name="body" rows="8" style="padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(17,28,51,.55);color:var(--txt)"><?=h($n['body'] ?? '')?></textarea>
 
-    <label class="muted">Body (EN)</label>
+    <label class="muted"><?=h(t('ტექსტი (EN)', 'Body (EN)'))?></label>
     <textarea name="body_en" rows="8" style="padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(17,28,51,.55);color:var(--txt)"><?=h($n['body_en'] ?? '')?></textarea>
 
-    <label class="muted">Order</label>
+    <label class="muted"><?=h(t('რიგითობა', 'Order'))?></label>
     <input name="order" type="number" value="<?=h($n['sort_order'] ?? 0)?>" style="padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(17,28,51,.55);color:var(--txt)">
 
     <label class="muted">
       <input type="checkbox" name="is_active" value="1" <?=((int)($n['is_active'] ?? 0) === 1) ? 'checked' : ''?>>
-      Active
+      <?=h(t('აქტიური', 'Active'))?>
     </label>
 
-    <label class="muted">Replace main image (optional)</label>
+    <label class="muted"><?=h(t('მთავარი სურათის შეცვლა (არასავალდებულო)', 'Replace main image (optional)'))?></label>
     <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp">
 
-    <label class="muted">Add gallery photos (optional, multiple)</label>
+    <label class="muted"><?=h(t('გალერეის სურათების დამატება (არასავალდებულო, multiple)', 'Add gallery photos (optional, multiple)'))?></label>
     <input type="file" name="gallery[]" accept=".jpg,.jpeg,.png,.webp" multiple>
 
-    <button class="btn ac" type="submit">Save</button>
+    <button class="btn ac" type="submit"><?=h(t('შენახვა', 'Save'))?></button>
   </form>
 </div>
 
 <?php if (!empty($g)): ?>
   <div class="card">
-    <h3 style="margin:0 0 10px">Gallery</h3>
+    <h3 style="margin:0 0 10px"><?=h(t('გალერეა', 'Gallery'))?></h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
       <?php foreach($g as $img): ?>
         <div>
           <img src="<?=h('../'.$img['image_path'])?>" style="width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--line)">
           <a class="btn bad" style="margin-top:8px;display:inline-block"
              href="news_edit.php?id=<?=h($id)?>&delimg=<?=h($img['id'])?>"
-             onclick="return confirm('Delete image?')">Delete</a>
+             onclick="return confirm('<?=h(t('წაშლა?', 'Delete image?'))?>')"><?=h(t('წაშლა', 'Delete'))?></a>
         </div>
       <?php endforeach; ?>
     </div>

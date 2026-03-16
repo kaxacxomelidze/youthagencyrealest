@@ -380,12 +380,36 @@
     const savedLang = getStoredLanguage();
     applyTranslations(savedLang);
     initTranslationObserver();
+    initPreventDummyNavigation();
 
     document.addEventListener('click', (event) => {
       const btn = event.target.closest('.lang-btn[data-lang]');
       if (!btn) return;
       event.preventDefault();
       setLanguage(btn.getAttribute('data-lang') || 'ka');
+    });
+  }
+
+  function initPreventDummyNavigation() {
+    if (window.__preventDummyNavigationInitialized) return;
+    window.__preventDummyNavigationInitialized = true;
+
+    document.addEventListener('click', (event) => {
+      const link = event.target.closest('a');
+      if (!link) return;
+      const href = (link.getAttribute('href') || '').trim();
+      if (href === '' || href === '#') {
+        event.preventDefault();
+      }
+    });
+
+    document.addEventListener('submit', (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      const action = (form.getAttribute('action') || '').trim();
+      if (action === '#') {
+        event.preventDefault();
+      }
     });
   }
 

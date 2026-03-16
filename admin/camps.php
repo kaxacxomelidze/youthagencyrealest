@@ -65,10 +65,6 @@ ob_start();
           <div class="muted">Name *</div>
           <input id="c_name" style="width:100%">
         </div>
-        <div style="flex:1;min-width:240px">
-          <div class="muted">Name (EN)</div>
-          <input id="c_name_en" style="width:100%">
-        </div>
 
         <div style="flex:1;min-width:240px">
           <div class="muted">Cover Image (upload)</div>
@@ -81,10 +77,6 @@ ob_start();
         <div style="flex:1;min-width:240px">
           <div class="muted">Card text</div>
           <input id="c_cardText" style="width:100%">
-        </div>
-        <div style="flex:1;min-width:240px">
-          <div class="muted">Card text (EN)</div>
-          <input id="c_cardText_en" style="width:100%">
         </div>
         <div style="min-width:160px">
           <div class="muted">windowDays</div>
@@ -147,10 +139,6 @@ ob_start();
           <div class="muted">Post title *</div>
           <input id="p_title" placeholder="Post title" style="width:100%">
         </div>
-        <div style="flex:1;min-width:240px">
-          <div class="muted">Post title (EN)</div>
-          <input id="p_title_en" placeholder="Post title (EN)" style="width:100%">
-        </div>
 
         <div style="flex:1;min-width:240px">
           <div class="muted">Post Cover (upload)</div>
@@ -167,9 +155,6 @@ ob_start();
 
       <div style="margin-top:10px">
         <textarea id="p_body" placeholder="Post body..."></textarea>
-      </div>
-      <div style="margin-top:10px">
-        <textarea id="p_body_en" placeholder="Post body (EN)..."></textarea>
       </div>
 
       <div class="row" style="margin-top:10px">
@@ -252,7 +237,7 @@ function renderCamps(){
 }
 
 function openCampEditor(){
-  currentCamp = { id:"", name:"", nameEn:"", cover:"", cardText:"", cardTextEn:"", start:"", end:"", closed:false, windowDays:365, form:[], posts:[] };
+  currentCamp = { id:"", name:"", cover:"", cardText:"", start:"", end:"", closed:false, windowDays:365, form:[], posts:[] };
   fillCampEditor();
   document.getElementById("btnDelete").style.display = "none";
   document.getElementById("campModalTitle").textContent = "Add Camp";
@@ -277,9 +262,7 @@ async function editCamp(id){
 
 function fillCampEditor(){
   document.getElementById("c_name").value = currentCamp.name || "";
-  document.getElementById("c_name_en").value = currentCamp.nameEn || "";
   document.getElementById("c_cardText").value = currentCamp.cardText || "";
-  document.getElementById("c_cardText_en").value = currentCamp.cardTextEn || "";
   document.getElementById("c_start").value = currentCamp.start || "";
   document.getElementById("c_end").value = currentCamp.end || "";
   document.getElementById("c_closed").value = currentCamp.closed ? "1" : "0";
@@ -319,10 +302,6 @@ function renderFields(){
           <div class="muted">Label *</div>
           <input value="${esc(f.label||"")}" oninput="currentCamp.form[${idx}].label=this.value" style="width:100%">
         </div>
-        <div style="flex:1;min-width:220px">
-          <div class="muted">Label (EN)</div>
-          <input value="${esc(f.label_en||"")}" oninput="currentCamp.form[${idx}].label_en=this.value" style="width:100%">
-        </div>
         <div style="min-width:200px">
           <div class="muted">Type</div>
           <select onchange="currentCamp.form[${idx}].type=this.value;renderFields()" style="width:200px">
@@ -347,7 +326,7 @@ function renderFields(){
   `).join("");
 }
 
-function addField(){ (currentCamp.form ||= []).push({id:"",label:"",label_en:"",type:"text",req:false,options:""}); renderFields(); }
+function addField(){ (currentCamp.form ||= []).push({id:"",label:"",type:"text",req:false,options:""}); renderFields(); }
 function removeField(i){ currentCamp.form.splice(i,1); renderFields(); }
 function moveField(i,dir){
   const a = currentCamp.form; const j = i+dir;
@@ -360,9 +339,7 @@ async function saveCamp(){
   const fd = new FormData();
   fd.append("id", currentCamp.id || "");
   fd.append("name", document.getElementById("c_name").value.trim());
-  fd.append("name_en", document.getElementById("c_name_en").value.trim());
   fd.append("cardText", document.getElementById("c_cardText").value.trim());
-  fd.append("cardText_en", document.getElementById("c_cardText_en").value.trim());
   fd.append("start", document.getElementById("c_start").value);
   fd.append("end", document.getElementById("c_end").value);
   fd.append("closed", document.getElementById("c_closed").value);
@@ -393,7 +370,6 @@ async function saveForm(){
   if(!currentCamp.id){ document.getElementById("campMsg").textContent = "❌ Save camp first"; return; }
   const fields = (currentCamp.form||[]).map(f=>({
     label:(f.label||"").trim(),
-    label_en:(f.label_en||"").trim(),
     type:f.type||"text",
     req:!!f.req,
     options:(f.options||"").trim()
@@ -435,9 +411,7 @@ function closePosts(){ document.getElementById("postsModalBack").style.display="
 function resetPost(){
   editingPostId=0;
   document.getElementById("p_title").value="";
-  document.getElementById("p_title_en").value="";
   document.getElementById("p_body").value="";
-  document.getElementById("p_body_en").value="";
   document.getElementById("p_cover_file").value="";
   document.getElementById("p_gallery_files").value="";
   document.getElementById("p_cover_preview").textContent="No cover selected";
@@ -453,9 +427,7 @@ async function savePost(){
   fd.append("campId", currentCamp.id);
   if(editingPostId) fd.append("id", String(editingPostId));
   fd.append("title", title);
-  fd.append("title_en", document.getElementById("p_title_en").value.trim());
   fd.append("body", body);
-  fd.append("body_en", document.getElementById("p_body_en").value.trim());
 
   const cover = document.getElementById("p_cover_file").files[0];
   if(cover) fd.append("cover_file", cover);
@@ -523,9 +495,7 @@ function editPost(id){
   if(!p) return;
   editingPostId=Number(id);
   document.getElementById("p_title").value=p.title||"";
-  document.getElementById("p_title_en").value=p.title_en||"";
   document.getElementById("p_body").value=p.body||"";
-  document.getElementById("p_body_en").value=p.body_en||"";
   document.getElementById("p_cover_file").value="";
   document.getElementById("p_gallery_files").value="";
   document.getElementById("p_cover_preview").innerHTML = p.cover

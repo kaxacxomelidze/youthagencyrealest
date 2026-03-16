@@ -1,13 +1,19 @@
 <?php
 declare(strict_types=1);
 
+// ✅ Start session FIRST (require_login() often needs it)
+if (session_status() !== PHP_SESSION_ACTIVE) {
+  session_start();
+}
+
 require_once __DIR__ . '/config.php';
 require_login();
 
 $pdo = db();
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
+if (empty($_SESSION['csrf'])) {
+  $_SESSION['csrf'] = bin2hex(random_bytes(16));
+}
 
 $csrf  = $_SESSION['csrf'];
 $title = 'ადმინი — განაცხადები (გრანტების პორტალი)';
@@ -26,9 +32,13 @@ ob_start();
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{color:var(--text); background:radial-gradient(1200px 700px at 20% -10%, rgba(52,152,219,.16), transparent 55%),
-                     radial-gradient(1100px 650px at 110% 0%, rgba(46,204,113,.12), transparent 55%),
-                     var(--bg);}
+body{
+  color:var(--text);
+  background:
+    radial-gradient(1200px 700px at 20% -10%, rgba(52,152,219,.16), transparent 55%),
+    radial-gradient(1100px 650px at 110% 0%, rgba(46,204,113,.12), transparent 55%),
+    var(--bg);
+}
 
 h1{margin:0;font-size:20px;font-weight:900}
 h2{margin:0;font-size:16px;font-weight:900}
@@ -127,7 +137,7 @@ th,td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;text-a
 th{color:rgba(207,233,255,.92);font-size:12px;font-weight:900}
 .subtle{color:var(--muted);font-size:12px;font-weight:800}
 .stack{display:flex;flex-direction:column;gap:4px}
-.contactRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
 .tag{
   display:inline-flex;align-items:center;gap:6px;
   padding:4px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.12);
@@ -153,9 +163,7 @@ th{color:rgba(207,233,255,.92);font-size:12px;font-weight:900}
   .tableWrap{display:none}
   .gridCards{display:grid}
 }
-.appCard{
-  display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;
-}
+.appCard{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;}
 .appCardLeft{min-width:240px;flex:1}
 .appCardRight{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .kvmini{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
@@ -174,17 +182,34 @@ th{color:rgba(207,233,255,.92);font-size:12px;font-weight:900}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;padding:12px;z-index:50}
 .modal.show{display:flex}
-.box{width:min(1560px,98vw);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:98vh;display:flex;flex-direction:column}
-.box{width:min(1180px,100%);background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:92vh;display:flex;flex-direction:column}
-.head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+
+.box{
+  width:min(1180px,100%);
+  background:rgba(20,27,51,.92);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+  box-shadow:var(--shadow);
+  max-height:92vh;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+
+/* ✅ sticky head so it feels premium */
+.head{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  padding-bottom:10px;
+  border-bottom:1px solid var(--line);
+  position:sticky; top:0;
+  background:rgba(20,27,51,.92);
+  z-index:5;
+}
 .close{width:44px;height:44px;border-radius:14px}
 
-.modal-body{overflow:auto;padding-right:4px;flex:1}
+.modal-body{overflow:auto;padding-right:4px;flex:1;padding-top:10px}
 
 .grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px}
 @media(max-width:1200px){.grid2{grid-template-columns:1fr}}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:980px){.grid2{grid-template-columns:1fr}}
 
 hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 
@@ -209,31 +234,29 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .answersHeader{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px}
 .answersMeta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .answersMeta input{max-width:260px}
-.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;max-height:75vh;overflow:auto;padding-right:4px}
-.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;max-height:520px;overflow:auto;padding-right:4px}
-.answerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.answerGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:10px;
+  max-height:520px;
+  overflow:auto;
+  padding-right:4px
+}
 .answerCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
 .answerLabel{font-size:12px;color:rgba(207,233,255,.92);font-weight:900}
 .answerValue{font-weight:800;margin-top:6px;white-space:pre-wrap;word-break:break-word}
 .answerMeta{font-size:11px;color:var(--muted);margin-top:6px}
 
-.uploadsGrid{display:grid;gap:10px;max-height:55vh;overflow:auto;padding-right:4px}
 .uploadsGrid{display:grid;gap:10px;max-height:320px;overflow:auto;padding-right:4px}
 .uploadCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
 .uploadCard .mini{margin-top:6px}
 .uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 .uploadCard .fileMeta b{word-break:break-word}
 .uploadActions{display:flex;gap:8px;flex-wrap:wrap}
-.uploadsGrid{display:grid;gap:10px}
-.uploadCard{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(11,16,34,.45)}
-.uploadCard .mini{margin-top:6px}
-.uploadHeader{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 
 .rawToggle{border:1px dashed var(--line);border-radius:12px;padding:8px}
 .rawToggle summary{cursor:pointer;font-weight:900}
 
-.fileRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-.fileMeta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .mini{font-size:12px;color:var(--muted);font-weight:800}
 a.dl{color:#fff;text-decoration:none;border-bottom:1px dashed rgba(255,255,255,.35)}
 a.dl:hover{opacity:.9}
@@ -306,7 +329,6 @@ a.dl:hover{opacity:.9}
     <div class="card">
       <div class="small">სულ: <b id="countApps">0</b></div>
 
-      <!-- Desktop table -->
       <div class="tableWrap">
         <table>
           <thead>
@@ -324,7 +346,6 @@ a.dl:hover{opacity:.9}
         </table>
       </div>
 
-      <!-- Mobile cards -->
       <div class="gridCards" id="cards"></div>
 
       <div class="small" style="margin-top:10px">
@@ -345,12 +366,14 @@ a.dl:hover{opacity:.9}
           <span id="amMeta"></span>
           <span id="amTypePill" class="pill" style="display:none"></span>
           <span id="amFilesPill" class="pill warn" style="display:none"></span>
+          <span id="amBudgetPill" class="pill open" style="display:none"></span>
         </div>
       </div>
       <button class="btn close" onclick="closeApp()" type="button">✕</button>
     </div>
 
     <div class="modal-body">
+
       <div class="summaryGrid">
         <div class="summaryCard">
           <div class="summaryLabel">გრანტი</div>
@@ -367,50 +390,11 @@ a.dl:hover{opacity:.9}
           <div class="summaryValue" id="amStatusText">—</div>
           <div class="summaryMeta small" id="amTimeline"></div>
         </div>
-    <div class="summaryGrid">
-      <div class="summaryCard">
-        <div class="summaryLabel">გრანტი</div>
-        <div class="summaryValue" id="amGrantTitle">—</div>
-        <div class="summaryMeta small" id="amGrantMeta"></div>
-      </div>
-      <div class="summaryCard">
-        <div class="summaryLabel">განმცხადებელი</div>
-        <div class="summaryValue" id="amApplicantName">—</div>
-        <div class="summaryMeta small" id="amApplicantMeta"></div>
-      </div>
-      <div class="summaryCard">
-        <div class="summaryLabel">სტატუსი</div>
-        <div class="summaryValue" id="amStatusText">—</div>
-        <div class="summaryMeta small" id="amTimeline"></div>
-      </div>
-    </div>
-
-    <div class="grid2">
-      <div class="card">
-        <div class="answersHeader">
-          <b>ფორმის პასუხები</b>
-          <div class="answersMeta">
-            <input id="amSearch" placeholder="ძებნა პასუხებში..." oninput="filterPretty()">
-            <span class="pill" id="amAnswerCount">0</span>
-          </div>
-        </div>
-
-        <div id="amPretty" class="answerGrid"></div>
-
-        <div id="amUploadsWrap" style="display:none;margin-top:14px">
-          <hr>
-          <h2>ატვირთული ფაილები</h2>
-          <div class="mini">uploads + ასევე form_data-ში აღმოჩენილი ფაილები.</div>
-          <div id="amUploads" class="uploadsGrid"></div>
-        </div>
-        <div class="summaryCard">
-          <div class="summaryLabel">სტატუსი</div>
-          <div class="summaryValue" id="amStatusText">—</div>
-          <div class="summaryMeta small" id="amTimeline"></div>
-        </div>
       </div>
 
       <div class="grid2">
+
+        <!-- LEFT -->
         <div class="card">
           <div class="answersHeader">
             <b>ფორმის პასუხები</b>
@@ -434,28 +418,20 @@ a.dl:hover{opacity:.9}
             <h2 style="margin:0 0 6px 0">ბიუჯეტი</h2>
             <div class="muted small">დამატებული ხარჯები. ჯამი ითვლება ავტომატურად.</div>
 
-            <div class="tableScroll" style="overflow:auto;margin-top:10px">
+            <div style="overflow:auto;margin-top:10px">
               <table>
                 <thead>
                   <tr>
-                    <th>კატეგორია *</th>
-                    <th>აღწერა *</th>
-                    <th style="width:160px">თანხა (₾) *</th>
+                    <th>კატეგორია</th>
+                    <th>აღწერა</th>
+                    <th style="width:160px">თანხა (₾)</th>
                   </tr>
                 </thead>
                 <tbody id="amBudgetBody"></tbody>
               </table>
             </div>
-        <div style="margin-top:14px">
-          <hr>
-          <details class="rawToggle">
-            <summary>RAW JSON (სრული)</summary>
-            <pre id="amData" class="small mono" style="white-space:pre-wrap;margin:8px 0 0 0"></pre>
-          </details>
-        </div>
-      </div>
 
-            <div class="row" style="margin-top:10px;justify-content:space-between;align-items:center">
+            <div class="row" style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
               <div></div>
               <div class="pill open">ჯამი: <b id="amBudgetTotal">0</b> ₾</div>
             </div>
@@ -470,6 +446,7 @@ a.dl:hover{opacity:.9}
           </div>
         </div>
 
+        <!-- RIGHT -->
         <div class="card" style="position:sticky;top:0;align-self:start">
           <b>მეტა (სტატუსი / ქულა / შენიშვნა)</b>
 
@@ -499,21 +476,16 @@ a.dl:hover{opacity:.9}
             ⚠️ წაშლა არის <b>soft-delete</b> (ფაილები არ იშლება).
           </div>
 
-
-          <hr>
-          <div class="small">
-            ⚠️ წაშლა არის <b>soft-delete</b> (ფაილები არ იშლება).
-          </div>
-
           <div class="actions" style="margin-top:12px">
             <button class="btn bad" type="button" onclick="deleteActiveApp()">წაშლა</button>
             <button class="btn ok" type="button" onclick="closeApp()">დახურვა</button>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+
+      </div><!-- /grid2 -->
+    </div><!-- /modal-body -->
+  </div><!-- /box -->
+</div><!-- /modal -->
 
 <div class="toast" id="toast">
   <div class="t" id="toastT">OK</div>
@@ -562,13 +534,13 @@ function toast(title, desc=""){
 function setBtnLoading(btn, on){
   if(!btn) return;
   if(on){
-    btn.dataset._txt = btn.textContent;
+    btn.dataset._html = btn.innerHTML;
     btn.innerHTML = `<span class="spin"></span> იტვირთება...`;
     btn.disabled = true;
   }else{
-    const old = btn.dataset._txt || btn.textContent;
-    btn.textContent = old;
+    btn.innerHTML = btn.dataset._html || btn.innerHTML;
     btn.disabled = false;
+    delete btn.dataset._html;
   }
 }
 const __deb = new Map();
@@ -683,7 +655,7 @@ function renderGrantSelect(){
 let APPS = [];
 let ACTIVE_APP_ID = 0;
 
-/* NEW: cache field labels per grant */
+/* cache field labels per grant */
 const FIELD_LABELS = new Map(); // grant_id -> { field_89: "სახელი", ... }
 function looksLikeFieldKey(k){
   const s = String(k || "");
@@ -710,9 +682,18 @@ function labelForKey(grantId, key){
     return lbl || fallbackFieldLabel(norm);
   }
   if(looksLikeFieldKey(norm)) return fallbackFieldLabel(norm);
-  return norm; // fallback
+  return norm;
 }
 
+function parseJsonMaybe(v){
+  if(v == null) return null;
+  if(typeof v === "string"){
+    const s = v.trim();
+    if(!s) return null;
+    try{ return JSON.parse(s); }catch(_){ return null; }
+  }
+  return v;
+}
 function getSubmissionMeta(formData){
   if(!formData || typeof formData !== "object") return null;
   const meta = formData.__meta;
@@ -723,12 +704,10 @@ async function ensureFieldLabels(grantId){
   grantId = Number(grantId || 0);
   if(!grantId) return;
   if(FIELD_LABELS.has(grantId)) return;
-
   try{
     const j = await api("grant_fields_map", {grant_id: grantId});
     FIELD_LABELS.set(grantId, j.map || {});
   }catch(e){
-    // no hard fail; just fallback to raw keys
     console.warn("No fields map:", e?.message);
     FIELD_LABELS.set(grantId, {});
   }
@@ -759,8 +738,8 @@ function statusText(status){
     "გაგზავნილი";
 }
 
-async function loadApps(withLoading){
-  const grant_id = Number(document.getElementById('aGrant').value || 0); // 0 => ALL
+async function loadApps(){
+  const grant_id = Number(document.getElementById('aGrant').value || 0);
   const q = (document.getElementById('aq').value || '').trim();
   const status = document.getElementById('aStatus').value;
 
@@ -771,7 +750,6 @@ async function loadApps(withLoading){
 
     renderApps();
 
-    // If specific grant selected, preload labels for better modal view
     if(grant_id) ensureFieldLabels(grant_id);
   }catch(e){
     if(e?.name !== "AbortError") showError(e.message);
@@ -781,14 +759,7 @@ async function loadApps(withLoading){
 function renderApps(){
   const tb = document.getElementById('aBody');
   const cards = document.getElementById('cards');
-  const kpi = {
-    total: APPS.length,
-    submitted: 0,
-    in_review: 0,
-    need_clarification: 0,
-    approved: 0,
-    rejected: 0
-  };
+  const kpi = { total: APPS.length, submitted: 0, in_review: 0, need_clarification: 0, approved: 0, rejected: 0 };
 
   (APPS || []).forEach(a => {
     const st = (a.status || 'submitted');
@@ -836,7 +807,6 @@ function renderApps(){
 
   tb.innerHTML = rows || `<tr><td colspan="7" class="small">განაცხადი არ არის. სცადე „ყველა გრანტი“ + სტატუსი „ყველა“.</td></tr>`;
 
-  // mobile cards
   const cardsHtml = (APPS || []).map(a=>`
     <div class="card">
       <div class="appCard">
@@ -846,17 +816,18 @@ function renderApps(){
             ${statusPill(a.status)}
           </div>
           <div class="small" style="margin-top:6px">${esc(a.created_at || '')}</div>
+
           <div style="margin-top:10px">
             <div><b>${esc(a.grant_title || ('#'+(a.grant_id ?? '')) || '-')}</b></div>
             <div class="small">grant_id: ${esc(String(a.grant_id ?? ''))}</div>
           </div>
 
-            <div class="kvmini">
-              <div><span class="k">განმცხადებელი:</span> <span class="v">${esc(a.applicant_name || '-')}</span></div>
-              <div><span class="k">ქულა:</span> <span class="v">${Number(a.rating || 0)}</span></div>
-              <div><span class="k">ელ.ფოსტა:</span> <span class="v">${esc(a.email || '—')}</span></div>
-              <div><span class="k">ტელეფონი:</span> <span class="v">${esc(a.phone || '—')}</span></div>
-            </div>
+          <div class="kvmini">
+            <div><span class="k">განმცხადებელი:</span> <span class="v">${esc(a.applicant_name || '-')}</span></div>
+            <div><span class="k">ქულა:</span> <span class="v">${Number(a.rating || 0)}</span></div>
+            <div><span class="k">ელ.ფოსტა:</span> <span class="v">${esc(a.email || '—')}</span></div>
+            <div><span class="k">ტელეფონი:</span> <span class="v">${esc(a.phone || '—')}</span></div>
+          </div>
         </div>
         <div class="appCardRight">
           <button class="btn ghost" type="button" onclick="openApp(${Number(a.id)}, ${Number(a.grant_id||0)})">გახსნა</button>
@@ -880,15 +851,6 @@ function normalizeApplicantType(v){
   if(s === "1") return "person";
   if(s === "2") return "org";
   return null;
-}
-function parseJsonMaybe(v){
-  if(v == null) return null;
-  if(typeof v === "string"){
-    const s = v.trim();
-    if(!s) return null;
-    try{ return JSON.parse(s); }catch(_){ return null; }
-  }
-  return v;
 }
 function findApplicantTypeDeep(obj, depth=0){
   if(depth > 6) return null;
@@ -957,13 +919,35 @@ function looksLikeBudgetRow(r){
   const a = Number(r.amount ?? r.sum ?? r.total ?? 0);
   const cat = (r.cat ?? r.category ?? "").toString().trim();
   const desc = (r.desc ?? r.description ?? "").toString().trim();
-  return (cat || desc) && !Number.isNaN(a);
+  // ✅ allow amount too
+  return (!Number.isNaN(a) && a > 0) || !!cat || !!desc;
 }
+
+/* ✅ NEW: smart detect "budget table value" object */
+function looksLikeBudgetValue(v){
+  v = parseJsonMaybe(v);
+  if(!v) return false;
+
+  // direct {rows:[...]}
+  if(typeof v === "object" && !Array.isArray(v) && Array.isArray(v.rows)){
+    return v.rows.some(x => looksLikeBudgetRow(parseJsonMaybe(x)));
+  }
+
+  // direct rows:[...]
+  if(Array.isArray(v)){
+    return v.some(x => looksLikeBudgetRow(parseJsonMaybe(x)));
+  }
+
+  return false;
+}
+
+/* ✅ NEW: deep search that also checks "field_*" values JSON */
 function deepFindBudgetRows(obj, depth=0){
-  if(depth > 6) return null;
+  if(depth > 7) return null;
   obj = parseJsonMaybe(obj);
   if(!obj) return null;
 
+  // case: array of rows
   if(Array.isArray(obj)){
     if(obj.some(x => looksLikeBudgetRow(parseJsonMaybe(x)))) return obj;
     for(const v of obj){
@@ -972,16 +956,32 @@ function deepFindBudgetRows(obj, depth=0){
     }
     return null;
   }
+
   if(typeof obj !== "object") return null;
 
+  // classic keys
   const b = parseJsonMaybe(obj.budget);
-  if(b && typeof b === "object" && Array.isArray(b.rows)) return b.rows;
+  if(b && typeof b === "object" && Array.isArray(b.rows) && b.rows.some(x=>looksLikeBudgetRow(parseJsonMaybe(x)))) return b.rows;
 
   const bt = parseJsonMaybe(obj.budget_table);
-  if(bt && typeof bt === "object" && Array.isArray(bt.rows)) return bt.rows;
+  if(bt && typeof bt === "object" && Array.isArray(bt.rows) && bt.rows.some(x=>looksLikeBudgetRow(parseJsonMaybe(x)))) return bt.rows;
 
+  // case: object has rows itself
   if(Array.isArray(obj.rows) && obj.rows.some(x => looksLikeBudgetRow(parseJsonMaybe(x)))) return obj.rows;
 
+  // ✅ case: field_123 contains {"rows":[...]} or rows array
+  for(const [k,v] of Object.entries(obj)){
+    const kk = String(k).toLowerCase();
+    if(kk.startsWith("field_") || kk.startsWith("f_") || kk.includes("budget") || kk.includes("ბიუჯ")){
+      const pv = parseJsonMaybe(v);
+      if(looksLikeBudgetValue(pv)){
+        if(Array.isArray(pv)) return pv;
+        if(pv && typeof pv === "object" && Array.isArray(pv.rows)) return pv.rows;
+      }
+    }
+  }
+
+  // fallback search
   for(const [k,v] of Object.entries(obj)){
     const kk = String(k).toLowerCase();
     if(kk.includes("budget") || kk.includes("ბიუჯ")){
@@ -993,19 +993,25 @@ function deepFindBudgetRows(obj, depth=0){
     const r = deepFindBudgetRows(v, depth+1);
     if(r) return r;
   }
+
   return null;
 }
+
 function showBudgetInModal(formData, rowsHint=null){
   const wrap = document.getElementById("amBudgetWrap");
   const body = document.getElementById("amBudgetBody");
   const totalEl = document.getElementById("amBudgetTotal");
+  const pill = document.getElementById("amBudgetPill");
   if(!wrap || !body || !totalEl) return;
 
+  // ✅ prefer rowsHint (from resolved); fallback deep search in raw formData
   const rows = Array.isArray(rowsHint) ? rowsHint : deepFindBudgetRows(formData);
+
   if(!rows){
     wrap.style.display = "none";
     body.innerHTML = "";
     totalEl.textContent = "0";
+    if(pill){ pill.style.display="none"; pill.textContent=""; }
     return;
   }
 
@@ -1030,6 +1036,11 @@ function showBudgetInModal(formData, rowsHint=null){
 
   totalEl.textContent = fmtMoney(total);
   wrap.style.display = "block";
+
+  if(pill){
+    pill.style.display="inline-flex";
+    pill.textContent = `ბიუჯეტი: ${fmtMoney(total)} ₾`;
+  }
 }
 
 function extractBudgetRowsFromResolved(resolved){
@@ -1037,7 +1048,8 @@ function extractBudgetRowsFromResolved(resolved){
   for(const row of resolved){
     if(!row || row.type !== "budget_table") continue;
     const val = parseJsonMaybe(row.value);
-    if(val && typeof val === "object" && Array.isArray(val.rows)) return val.rows;
+    if(val && typeof val === "object" && Array.isArray(val.rows) && val.rows.some(x=>looksLikeBudgetRow(parseJsonMaybe(x)))) return val.rows;
+    if(Array.isArray(val) && val.some(x=>looksLikeBudgetRow(parseJsonMaybe(x)))) return val;
   }
   return null;
 }
@@ -1072,11 +1084,7 @@ function flattenObject(obj, prefix="", out=[]){
       if(String(k) === "__meta") continue;
       const key = prefix ? `${prefix}.${k}` : k;
       if(v && typeof v === "object"){
-        if(String(k).toLowerCase().includes("budget") || String(k).includes("ბიუჯ")){
-          out.push([key, "[object]"]);
-        }else{
-          flattenObject(v, key, out);
-        }
+        flattenObject(v, key, out);
       }else{
         out.push([key, valToText(v)]);
       }
@@ -1091,6 +1099,7 @@ function resolveLabelForKey(grantId, key){
   const k = String(key || "");
   const parts = k.split(".");
   const last = parts[parts.length - 1] || k;
+
   const normLast = normalizeFieldKey(last);
   const normKey = normalizeFieldKey(k);
 
@@ -1099,10 +1108,12 @@ function resolveLabelForKey(grantId, key){
     const label = (metaMap && metaMap[normLast]) ? metaMap[normLast] : labelForKey(grantId, normLast);
     return label || fallbackFieldLabel(normLast);
   }
+
   const label2 = (metaMap && metaMap[normKey]) ? metaMap[normKey] : labelForKey(grantId, normKey);
   if(label2 && label2 !== normKey) return label2;
   return k;
 }
+
 function renderPretty(formData, app){
   const box = document.getElementById("amPretty");
   if(!box) return;
@@ -1115,28 +1126,16 @@ function renderPretty(formData, app){
   const rows = [];
   const flat = flattenObject(formData, "", []);
   const seen = new Set();
+
   for(const [k,v] of flat){
     const kk = String(k||"").trim();
     if(!kk) continue;
     if(seen.has(kk)) continue;
     seen.add(kk);
+
     const label = resolveLabelForKey(grantId, kk);
     const normalizedValue = normalizeAnswerValue(label, v);
     rows.push({label, value: normalizedValue, rawKey: kk});
-  }
-
-  box.innerHTML = rows.map(row=>{
-    const showMeta = row.rawKey && !looksLikeFieldKey(row.rawKey) && row.rawKey !== row.label;
-    return `
-      <div class="answerCard" data-label="${escAttr(row.label)}" data-key="${escAttr(row.rawKey)}">
-        <div class="answerLabel">${esc(row.label)}</div>
-        <div class="answerValue">${esc(row.value || "—")}</div>
-        ${showMeta ? `<div class="answerMeta">path: ${esc(row.rawKey)}</div>` : ""}
-      </div>
-    `;
-  }).join("");
-
-    rows.push({label, value: v, rawKey: kk});
   }
 
   box.innerHTML = rows.map(row=>{
@@ -1343,14 +1342,12 @@ function renderUploads(uploads, formData, grantId=0){
 /* ---------- open/close/save/delete ---------- */
 async function openApp(id, grantIdHint=0){
   try{
-    // preload labels (important!)
     const gid = Number(grantIdHint || 0);
     if(gid) await ensureFieldLabels(gid);
 
     const j = await api("app_get", {id, include_uploads: 1, include_files: 1});
     const a = j.app;
 
-    // if we didn't know grant_id before
     await ensureFieldLabels(Number(a.grant_id || 0));
 
     ACTIVE_APP_ID = Number(a.id);
@@ -1363,7 +1360,7 @@ async function openApp(id, grantIdHint=0){
       `სტატუსი: ${statusText(a.status)} • ქულა: ${a.rating} • შექმნა: ${a.created_at} • განახლდა: ${a.updated_at || "-"}`;
 
     const grantTitle = (a.grant_title || ("#" + a.grant_id));
-    const applicantName = a.applicant_name || meta.applicant_name || "—";
+    const applicantName  = a.applicant_name || meta.applicant_name || "—";
     const applicantEmail = a.email || meta.applicant_email || "—";
     const applicantPhone = a.phone || meta.applicant_phone || "—";
 
@@ -1385,7 +1382,7 @@ async function openApp(id, grantIdHint=0){
 
     document.getElementById('amStatus').value = a.status || 'submitted';
     document.getElementById('amRating').value = Number(a.rating || 0);
-    document.getElementById('amNote').value = a.admin_note || '';
+    document.getElementById('amNote').value   = a.admin_note || '';
 
     document.getElementById('amData').textContent = JSON.stringify(fd, null, 2);
 
@@ -1396,9 +1393,10 @@ async function openApp(id, grantIdHint=0){
     renderApplicantTypePill(fd);
     renderPretty(fd, a);
     renderUploads(a.uploads || [], fd, Number(a.grant_id || 0));
+
+    // ✅ budget: try resolved first, else deep search
     const budgetRowsHint = extractBudgetRowsFromResolved(a.form_data_resolved || []);
     showBudgetInModal(fd, budgetRowsHint);
-    showBudgetInModal(fd);
 
     document.getElementById('appModal').classList.add('show');
   }catch(e){
@@ -1420,6 +1418,11 @@ function closeApp(){
   if(filesP){
     filesP.style.display = "none";
     filesP.textContent = "";
+  }
+  const budP = document.getElementById("amBudgetPill");
+  if(budP){
+    budP.style.display = "none";
+    budP.textContent = "";
   }
 
   const wrap = document.getElementById("amBudgetWrap");

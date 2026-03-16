@@ -77,11 +77,15 @@
 
   (async () => {
     try {
-      await inject('siteHeaderMount', 'header.html');
+      const headerPromise = inject('siteHeaderMount', 'header.html');
+      const newsPromise = injectPhp('newsMount', '/youthagency/news_list.php');
+      const footerPromise = inject('siteFooterMount', 'footer.html');
+
+      await headerPromise;
       await loadScript('app.js');
       if (typeof window.initHeader === 'function') window.initHeader();
-      await injectPhp('newsMount', '/youthagency/news_list.php');   // ✅ THIS
-      await inject('siteFooterMount', 'footer.html');
+
+      await Promise.all([newsPromise, footerPromise]);
     } catch (err) {
       console.error(err);
     }

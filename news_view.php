@@ -14,16 +14,43 @@ function has_col(PDO $pdo, string $table, string $col): bool {
   }
 }
 
+function fmt_date(?string $dt): string {
+  if (!$dt) return '';
+  $ts = strtotime($dt);
+  if (!$ts) return (string)$dt;
+  return date('Y-m-d H:i', $ts);
+}
+
+/**
+ * IMPORTANT:
+ * Language comes from cookie (PHP can read cookie).
+ * Your header buttons must set: document.cookie = "lang=en; path=/; ..."
+ */
+$lang = (($_COOKIE['lang'] ?? 'ka') === 'en') ? 'en' : 'ka';
+
 $id = (int)($_GET['id'] ?? 0);
 if ($id <= 0) { http_response_code(404); exit('Not found'); }
 
-$stmt = $pdo->prepare("
-  SELECT id,title," . (has_col($pdo, 'news', 'title_en') ? "title_en" : "'' AS title_en") . ",
-         slug,body," . (has_col($pdo, 'news', 'body_en') ? "body_en" : "'' AS body_en") . ",
-         image_path,published_at,is_active
+$hasTitleEn = has_col($pdo, 'news', 'title_en');
+$hasBodyEn  = has_col($pdo, 'news', 'body_en');
+
+$sql = "
+  SELECT
+    id,
+    title,
+    " . ($hasTitleEn ? "title_en" : "'' AS title_en") . ",
+    slug,
+    body,
+    " . ($hasBodyEn ? "body_en" : "'' AS body_en") . ",
+    image_path,
+    published_at,
+    is_active
   FROM news
-  WHERE id=? LIMIT 1
-");
+  WHERE id=?
+  LIMIT 1
+";
+
+$stmt = $pdo->prepare($sql);
 $stmt->execute([$id]);
 $n = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -32,43 +59,56 @@ if (!$n || (int)$n['is_active'] !== 1) {
   exit('Not found');
 }
 
+// SEO slug normalize
 $slug = trim((string)($n['slug'] ?? ''));
 if ($slug === '' || $slug === '-' || $slug === 'news') $slug = 'news-' . (int)$n['id'];
 
 $reqSlug = trim((string)($_GET['slug'] ?? ''));
 $correctUrl = "/youthagency/news/" . (int)$n['id'] . "/" . $slug;
 
-// if slug is wrong -> redirect to correct SEO url
 if ($reqSlug !== '' && $reqSlug !== $slug) {
   header("Location: $correctUrl", true, 301);
   exit;
 }
 
-// gallery
+// Gallery
 $gallery = [];
 try {
   $g = $pdo->prepare("SELECT id,image_path FROM news_images WHERE news_id=? ORDER BY sort_order ASC, id ASC");
   $g->execute([$id]);
   $gallery = $g->fetchAll(PDO::FETCH_ASSOC);
-} catch(Throwable $e) { $gallery = []; }
-
-function fmt_date(?string $dt): string {
-  if (!$dt) return '';
-  $ts = strtotime($dt);
-  if (!$ts) return $dt;
-  return date('Y-m-d H:i', $ts);
+} catch(Throwable $e) {
+  $gallery = [];
 }
 
+// Pick content by language (with fallback)
+$titleKa = (string)($n['title'] ?? '');
 $titleEn = (string)($n['title_en'] ?? '');
-$bodyText = (string)($n['body'] ?? '');
-$bodyTextEn = (string)($n['body_en'] ?? '');
+$bodyKa  = (string)($n['body'] ?? '');
+$bodyEn  = (string)($n['body_en'] ?? '');
+
+$viewTitle = $titleKa;
+$viewBody  = $bodyKa;
+
+if ($lang === 'en') {
+  if (trim($titleEn) !== '') $viewTitle = $titleEn;
+  else $viewTitle = $titleKa;
+
+  if (trim($bodyEn) !== '') $viewBody = $bodyEn;
+  else $viewBody = $bodyKa;
+} else {
+  // ka
+  $viewTitle = (trim($titleKa) !== '') ? $titleKa : $titleEn;
+  $viewBody  = (trim($bodyKa) !== '') ? $bodyKa : $bodyEn;
+}
+
 ?>
 <!doctype html>
-<html lang="ka">
+<html lang="<?=h($lang)?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><?=h($n['title'])?></title>
+  <title><?=h($viewTitle)?></title>
 
   <link rel="stylesheet" href="/youthagency/assets.css?v=1">
 
@@ -85,19 +125,19 @@ $bodyTextEn = (string)($n['body_en'] ?? '');
   <div class="wrap">
     <a class="btn" href="javascript:history.back()">← Back</a>
 
+    <h1 style="margin:14px 0"><?=h($viewTitle)?></h1>
 
-    <h1 style="margin:14px 0" data-i18n-text data-text-ka="<?=h((string)$n['title'])?>" data-text-en="<?=h($titleEn)?>"><?=h($n['title'])?></h1>
     <div class="meta"><?=h(fmt_date($n['published_at'] ?? ''))?></div>
 
     <?php if (!empty($n['image_path'])): ?>
       <img class="heroimg" src="/youthagency/<?=h($n['image_path'])?>" alt="">
     <?php endif; ?>
 
-    <?php if ($bodyText !== '' || $bodyTextEn !== ''): ?>
-      <div style="margin-top:18px;line-height:1.7;white-space:pre-wrap" data-i18n-text data-text-ka="<?=h($bodyText)?>" data-text-en="<?=h($bodyTextEn)?>"><?=h($bodyText !== '' ? $bodyText : $bodyTextEn)?></div>
+    <?php if (trim($viewBody) !== ''): ?>
+      <div style="margin-top:18px;line-height:1.7;white-space:pre-wrap"><?=h($viewBody)?></div>
     <?php endif; ?>
 
-  <?php if (!empty($gallery)): ?>
+    <?php if (!empty($gallery)): ?>
       <h3 style="margin-top:22px">Gallery</h3>
       <div class="gallery">
         <?php foreach($gallery as $img): ?>
@@ -107,6 +147,7 @@ $bodyTextEn = (string)($n['body_en'] ?? '');
     <?php endif; ?>
   </div>
 
+  <!-- Keep app.js for header/menu translations -->
   <script src="/youthagency/app.js?v=2"></script>
 </body>
 </html>

@@ -2,15 +2,19 @@
 require_once __DIR__ . '/admin/config.php';
 $pdo = db();
 
-function has_col(PDO $pdo, string $table, string $col): bool {
+function table_cols(PDO $pdo, string $table): array {
+  static $cache = [];
   $table = preg_replace('/[^a-zA-Z0-9_]+/', '', $table);
-  $col   = preg_replace('/[^a-zA-Z0-9_]+/', '', $col);
-  if ($table === '' || $col === '') return false;
+  if ($table === '') return [];
+  if (isset($cache[$table])) return $cache[$table];
   try{
-    $q = $pdo->query("SHOW COLUMNS FROM `$table` LIKE " . $pdo->quote($col));
-    return (bool)$q->fetch(PDO::FETCH_ASSOC);
+    $q = $pdo->query("SHOW COLUMNS FROM `$table`");
+    $cols = $q ? $q->fetchAll(PDO::FETCH_COLUMN, 0) : [];
+    $cache[$table] = array_flip($cols ?: []);
+    return $cache[$table];
   }catch(Throwable $e){
-    return false;
+    $cache[$table] = [];
+    return $cache[$table];
   }
 }
 
@@ -32,9 +36,13 @@ function news_url(array $n): string {
   return "/youthagency/news/$id/$slug";
 }
 
+$news_cols = table_cols($pdo, 'news');
+$has_title_en = isset($news_cols['title_en']);
+$has_body_en = isset($news_cols['body_en']);
+
 $items = $pdo->query("
-  SELECT id, title, " . (has_col($pdo, 'news', 'title_en') ? "title_en" : "'' AS title_en") . ", slug,
-         body, " . (has_col($pdo, 'news', 'body_en') ? "body_en" : "'' AS body_en") . ", image_path, published_at
+  SELECT id, title, " . ($has_title_en ? "title_en" : "'' AS title_en") . ", slug,
+         body, " . ($has_body_en ? "body_en" : "'' AS body_en") . ", image_path, published_at
   FROM news
   WHERE is_active=1
   ORDER BY sort_order ASC, id DESC
