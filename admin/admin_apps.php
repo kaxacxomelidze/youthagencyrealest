@@ -1077,6 +1077,46 @@ function isLikelyBudgetRowShape(rowObj){
   return hasBudgetKeyHints || (numericCount >= 1 && scalarCount >= 2);
 }
 
+function normalizeBudgetColumns(cols){
+  const arr = Array.isArray(cols) ? cols : [];
+  const out = [];
+  for(const c of arr){
+    if(!c) continue;
+    if(typeof c === "string"){
+      const key = c.trim();
+      if(!key) continue;
+      out.push({ key, label: key });
+      continue;
+    }
+    if(typeof c === "object"){
+      const key = String(c.key ?? c.name ?? c.field ?? c.id ?? "").trim();
+      const label = String(c.label ?? c.title ?? key).trim();
+      if(!key) continue;
+      out.push({ key, label: label || key });
+    }
+  }
+  return out;
+}
+
+function rowsFromColumnsAndRows(valueObj){
+  if(!valueObj || typeof valueObj !== "object") return null;
+  const cols = normalizeBudgetColumns(valueObj.columns);
+  const rows = Array.isArray(valueObj.rows) ? valueObj.rows : null;
+  if(!cols.length || !rows || !rows.length) return null;
+
+  const mapped = rows.map(r=>{
+    const rv = parseJsonMaybe(r);
+    if(Array.isArray(rv)){
+      const obj = {};
+      cols.forEach((c,i)=>{ obj[c.key] = rv[i] ?? ""; });
+      return obj;
+    }
+    return rv;
+  }).filter(Boolean);
+
+  return mapped.length ? mapped : null;
+}
+
 function rowsFromBudgetValue(v){
   const pv = parseJsonMaybe(v);
   if(!pv) return null;
@@ -1092,8 +1132,13 @@ function rowsFromBudgetValue(v){
 
   if(Array.isArray(pv)) return pickRows(pv);
   if(typeof pv === "object"){
+    const fromSchema = rowsFromColumnsAndRows(pv);
+    const fromSchemaRows = pickRows(fromSchema);
+    if(fromSchemaRows) return fromSchemaRows;
+
     const fromRows = pickRows(pv.rows);
     if(fromRows) return fromRows;
+
     const one = normalizeBudgetRow(pv);
     if(one && one.hasContent && isLikelyBudgetRowShape(pv)) return [pv];
   }
