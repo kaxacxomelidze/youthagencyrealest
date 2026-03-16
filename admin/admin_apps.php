@@ -1022,14 +1022,62 @@ function fieldTypeForKey(grantId, key){
   return String(map[normalizeFieldKey(key)] || "").toLowerCase();
 }
 
+function isLikelyBudgetRowShape(rowObj){
+  rowObj = parseJsonMaybe(rowObj);
+  if(!rowObj || typeof rowObj !== "object") return false;
+
+  const keys = Object.keys(rowObj).filter(k => String(k) !== "__meta");
+  if(!keys.length) return false;
+
+  const hasBudgetKeyHints = keys.some(k => /budget|ბიუჯ|amount|sum|total|price|cost|თანხ|კატეგ|desc|description|დასახელებ|აღწერ/i.test(String(k)));
+
+  let scalarCount = 0;
+  let numericCount = 0;
+  for(const k of keys){
+    const v = rowObj[k];
+    if(v === null || v === undefined) continue;
+    if(typeof v === "string"){
+      const t = v.trim();
+      if(!t) continue;
+      scalarCount += 1;
+      const n = Number(t.replace(/,/g, ""));
+      if(Number.isFinite(n)) numericCount += 1;
+      continue;
+    }
+    if(typeof v === "number"){
+      if(!Number.isFinite(v)) continue;
+      scalarCount += 1;
+      numericCount += 1;
+      continue;
+    }
+    if(typeof v === "boolean"){
+      scalarCount += 1;
+      continue;
+    }
+  }
+
+  return hasBudgetKeyHints || (numericCount >= 1 && scalarCount >= 2);
+}
+
 function rowsFromBudgetValue(v){
   const pv = parseJsonMaybe(v);
   if(!pv) return null;
 
-  if(Array.isArray(pv) && pv.some(x => normalizeBudgetRow(x)?.hasContent)) return pv;
+  const pickRows = (rows)=>{
+    if(!Array.isArray(rows)) return null;
+    const filtered = rows.filter(r => {
+      const nr = normalizeBudgetRow(r);
+      return !!(nr && nr.hasContent && isLikelyBudgetRowShape(r));
+    });
+    return filtered.length ? filtered : null;
+  };
+
+  if(Array.isArray(pv)) return pickRows(pv);
   if(typeof pv === "object"){
-    if(Array.isArray(pv.rows) && pv.rows.some(x => normalizeBudgetRow(x)?.hasContent)) return pv.rows;
-    if(normalizeBudgetRow(pv)?.hasContent) return [pv];
+    const fromRows = pickRows(pv.rows);
+    if(fromRows) return fromRows;
+    const one = normalizeBudgetRow(pv);
+    if(one && one.hasContent && isLikelyBudgetRowShape(pv)) return [pv];
   }
 
   return null;
@@ -1069,7 +1117,7 @@ function deepFindBudgetRows(obj, depth=0, grantId=0){
     const isFieldKey = kk.startsWith("field_") || kk.startsWith("f_") || /^\d+$/.test(kk);
     const typedBudget = isFieldKey && isBudgetFieldType(fieldTypeForKey(grantId, kk));
 
-    if(typedBudget || kk.includes("budget") || kk.includes("ბიუჯ")){
+    if(typedBudget || kk.includes("budget") || kk.includes("ბიუჯ") || isFieldKey){
       const rows = rowsFromBudgetValue(v);
       if(rows) return rows;
     }
