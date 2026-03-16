@@ -165,6 +165,10 @@ $payload = [
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?= h((string)$grant['title']) ?> • Grant Portal</title>
 
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="/youthagency/assets.css?v=1">
+
   <style>
     :root{
       --bg:#0b1220; --panel:#0f172a; --card:#111827; --line:#22314a;
@@ -172,7 +176,7 @@ $payload = [
       --warn:#f59e0b; --bad:#dc2626; --radius:14px;
     }
     *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Arial;background:var(--bg);color:var(--text)}
+    body{margin:0;font-family:'Noto Sans Georgian',system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
     a{color:inherit;text-decoration:none}
     .wrap{max-width:1160px;margin:0 auto;padding:18px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
@@ -1272,8 +1276,8 @@ function renderStep(){
 
 function bindFields(activeDbStep, fields, idx, isFiles){
   document.querySelectorAll("[data-field]").forEach(el=>{
-    el.addEventListener("input", ()=>{
-      const k = el.getAttribute("data-field");
+    const k = el.getAttribute("data-field");
+    const syncValue = ()=>{
       state.form_data[k] = el.value;
 
       const tf = findApplicantTypeField();
@@ -1282,14 +1286,17 @@ function bindFields(activeDbStep, fields, idx, isFiles){
         state.applicantType = t || "person";
         renderStep();
       }
-    });
-    const k = el.getAttribute("data-field");
-    if(state.form_data[k] == null && el.value) state.form_data[k] = el.value;
+    };
+
+    el.addEventListener("input", syncValue);
+    el.addEventListener("change", syncValue);
+
+    if(state.form_data[k] == null) state.form_data[k] = el.value ?? "";
   });
 
   document.querySelectorAll("[data-group]").forEach(el=>{
-    el.addEventListener("change", ()=>{
-      const k = el.getAttribute("data-group");
+    const k = el.getAttribute("data-group");
+    const syncGroup = ()=>{
       const list = Array.from(document.querySelectorAll(`input[data-group="${k}"]`));
       const isRadio = list.some(x => x.type === "radio");
       if(isRadio){
@@ -1298,7 +1305,10 @@ function bindFields(activeDbStep, fields, idx, isFiles){
       } else {
         state.form_data[k] = list.filter(x => x.checked).map(x => x.value);
       }
-    });
+    };
+
+    el.addEventListener("change", syncGroup);
+    if(state.form_data[k] == null) syncGroup();
   });
 
   document.querySelectorAll("[data-file-field]").forEach(inp=>{
