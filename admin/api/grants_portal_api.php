@@ -1160,6 +1160,20 @@ try {
       }
     }
 
+    $budget_payloads = [];
+    foreach ($fd as $k => $v) {
+      $key = (string)$k;
+      if (!isset($fieldMap[$key])) continue;
+      $t = strtolower((string)($fieldMap[$key]['type'] ?? ''));
+      if ($t !== 'budget_table' && strpos($t, 'budget') === false) continue;
+      $budget_payloads[] = [
+        'key' => $key,
+        'label' => (string)($fieldMap[$key]['label'] ?? $key),
+        'type' => (string)($fieldMap[$key]['type'] ?? 'budget_table'),
+        'value' => $v,
+      ];
+    }
+
     $up = $pdo->prepare("
       SELECT id, file_path, original_name, stored_name, size_bytes, mime_type,
              requirement_id, field_id, field_name, created_at
@@ -1184,6 +1198,7 @@ try {
       'updated_at' => $a['updated_at'],
       'form_data' => $fd,
       'form_data_resolved' => $fdResolved,
+      'budget_payloads' => $budget_payloads,
       'uploads' => $uploads
     ]]);
   }

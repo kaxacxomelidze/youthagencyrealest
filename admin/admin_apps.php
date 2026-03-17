@@ -1312,7 +1312,7 @@ function collectRawBudgetPayloads(formData, grantId){
   return out;
 }
 
-function showBudgetInModal(formData, rowsHint=null){
+function showBudgetInModal(formData, rowsHint=null, budgetPayloads=[]){
   const wrap = document.getElementById("amBudgetWrap");
   const body = document.getElementById("amBudgetBody");
   const totalEl = document.getElementById("amBudgetTotal");
@@ -1321,12 +1321,14 @@ function showBudgetInModal(formData, rowsHint=null){
 
   const gid = Number(window.__activeGrantIdForBudget || 0);
   const hintRows = Array.isArray(rowsHint) ? rowsHint : null;
-  const budgetValue = deepFindBudgetValue(formData, 0, gid);
+  const payloadList = Array.isArray(budgetPayloads) ? budgetPayloads : [];
+  const payloadValue = payloadList.length ? parseJsonMaybe(payloadList[0].value) : null;
+  const budgetValue = payloadValue || deepFindBudgetValue(formData, 0, gid);
   const valueRows = rowsFromBudgetValue(budgetValue);
   const rows = valueRows || hintRows || deepFindBudgetRows(formData, 0, gid);
 
   if(!rows){
-    const rawPayloads = collectRawBudgetPayloads(formData, gid);
+    const rawPayloads = payloadList.length ? payloadList.map(x=>({key:String(x.key||x.label||"budget"), value:parseJsonMaybe(x.value)})) : collectRawBudgetPayloads(formData, gid);
     if(!rawPayloads.length){
       wrap.style.display = "none";
       body.innerHTML = "";
@@ -1386,7 +1388,7 @@ function showBudgetInModal(formData, rowsHint=null){
     pill.textContent = `ბიუჯეტი: ${fmtMoney(total)} ₾`;
   }
 
-  const rawPayloads = collectRawBudgetPayloads(formData, gid);
+  const rawPayloads = payloadList.length ? payloadList.map(x=>({key:String(x.key||x.label||"budget"), value:parseJsonMaybe(x.value)})) : collectRawBudgetPayloads(formData, gid);
   if(rawPayloads.length){
     body.innerHTML += rawPayloads.map(x=>`
       <tr>
@@ -1773,7 +1775,7 @@ async function openApp(id, grantIdHint=0){
 
     // ✅ budget: try resolved first, else deep search
     const budgetRowsHint = extractBudgetRowsFromResolved(a.form_data_resolved || []);
-    showBudgetInModal(fd, budgetRowsHint);
+    showBudgetInModal(fd, budgetRowsHint, a.budget_payloads || []);
 
     document.getElementById('appModal').classList.add('show');
   }catch(e){
