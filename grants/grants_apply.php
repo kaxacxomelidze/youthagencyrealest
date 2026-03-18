@@ -1089,6 +1089,26 @@ function syncVisibleDomToState(){
     state.form_data[k] = el.value ?? "";
   });
 
+function budgetPayloadForField(field){
+  const opt = field ? readBudgetOptionsFromField(field) : budgetDefaultOptions();
+  const cols = Array.isArray(opt.columns) ? opt.columns : [];
+  return {
+    rows: (state.data.budget.rows || []),
+    columns: cols.map(c => ({
+      key: String(c?.key || ''),
+      label: String(c?.label || c?.key || ''),
+      type: String(c?.type || 'text')
+    })).filter(c => c.key)
+  };
+}
+
+function syncVisibleDomToState(){
+  document.querySelectorAll("[data-field]").forEach(el=>{
+    const k = el.getAttribute("data-field");
+    if(!k) return;
+    state.form_data[k] = el.value ?? "";
+  });
+
   const groups = new Set(Array.from(document.querySelectorAll("[data-group]"))
     .map(el => String(el.getAttribute("data-group") || "").trim())
     .filter(Boolean));
@@ -1104,10 +1124,23 @@ function syncVisibleDomToState(){
     }
   });
 
-  if(hasConfiguredBudgetStep()){
-    applyBudgetToFormData();
+  const budgetInputs = Array.from(document.querySelectorAll("[data-brow][data-bkey]"));
+  if(budgetInputs.length){
+    budgetInputs.forEach(inp=>{
+      const i = Number(inp.getAttribute("data-brow"));
+      const k = String(inp.getAttribute("data-bkey") || "");
+      if(!Number.isFinite(i) || i < 0 || !k) return;
+      state.data.budget.rows[i] = state.data.budget.rows[i] || {};
+      const col = (readBudgetOptionsFromField(findAnyBudgetTableField()).columns||[]).find(c => c.key === k);
+      if(col && col.type === "number"){
+        state.data.budget.rows[i][k] = Number(inp.value||0);
+      }else{
+        state.data.budget.rows[i][k] = inp.value;
+      }
+    });
   }
 }
+
 function bindSubmit(){
   const back = document.getElementById("btnBackS");
   if(back){
@@ -1126,15 +1159,13 @@ function bindSubmit(){
       btn.disabled = true;
       syncVisibleDomToState();
 
-      if(hasConfiguredBudgetStep()){
-        const budget = applyBudgetToFormData();
-        const anyBudgetField = findAnyBudgetTableField();
-        const budgetOpt = anyBudgetField ? readBudgetOptionsFromField(anyBudgetField) : budgetDefaultOptions();
-        if(!validateBudgetWithOptions(budget.rows, budgetOpt)){
-          alert(state.lastBudgetError || "ბიუჯეტის შეცდომა");
-          btn.disabled = false;
-          return;
-        }
+      // final budget guard
+      const anyBudgetField = findAnyBudgetTableField();
+      const budgetOpt = anyBudgetField ? readBudgetOptionsFromField(anyBudgetField) : budgetDefaultOptions();
+      if(anyBudgetField && !validateBudgetWithOptions(state.data.budget.rows, budgetOpt)){
+        alert(state.lastBudgetError || "ბიუჯეტის შეცდომა");
+        btn.disabled = false;
+        return;
       }
 
       const tf = findApplicantTypeField();
@@ -1144,8 +1175,14 @@ function bindSubmit(){
         if(t) state.applicantType = t;
       }
 
-      if(hasConfiguredBudgetStep()){
-        applyBudgetToFormData();
+      // sync budget rows/columns into ALL budget_table fields
+      const all = getAllFieldsFlat();
+      const budgetFields = all.filter(f => f.type === "budget_table");
+      if(budgetFields.length){
+        for(const bf of budgetFields){
+          const k = "field_" + bf.id;
+          state.form_data[k] = budgetPayloadForField(bf);
+        }
       }
 
       const fd = new FormData();
@@ -1368,7 +1405,11 @@ function renderStep(){
         renderStep();
       },
       () => {
-        applyBudgetToFormData();
+        // store rows/columns into budget field if exists
+        if(budgetField){
+          const k = "field_" + budgetField.id;
+          state.form_data[k] = budgetPayloadForField(budgetField);
+        }
         state.validByStep[state.currentKey] = true;
         state.currentKey = steps[Math.min(steps.length-1, idx+1)].key;
         renderStep();
@@ -1408,8 +1449,10 @@ function bindFields(activeDbStep, fields, idx, isFiles){
         renderStep();
       }
     };
+
     el.addEventListener("input", syncValue);
     el.addEventListener("change", syncValue);
+
     if(state.form_data[k] == null) state.form_data[k] = el.value ?? "";
   });
 
@@ -1425,6 +1468,7 @@ function bindFields(activeDbStep, fields, idx, isFiles){
         state.form_data[k] = list.filter(x => x.checked).map(x => x.value);
       }
     };
+
     el.addEventListener("change", syncGroup);
     if(state.form_data[k] == null) syncGroup();
   });
@@ -1495,33 +1539,33 @@ function bindFields(activeDbStep, fields, idx, isFiles){
     });
   }
 }
-</script>
+  </script>
 
-<script>
-  async function inject(id, file) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const res = await fetch(file + (file.includes('?') ? '&' : '?') + 'v=2');
-    if (!res.ok) return;
-    el.innerHTML = await res.text();
-  }
+  <script>
+    async function inject(id, file) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const res = await fetch(file + (file.includes('?') ? '&' : '?') + 'v=2');
+      if (!res.ok) return;
+      el.innerHTML = await res.text();
+    }
 
-  async function loadScript(src) {
-    return new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = src + (src.includes('?') ? '&' : '?') + 'v=2';
-      s.onload = resolve;
-      s.onerror = resolve;
-      document.body.appendChild(s);
-    });
-  }
+    async function loadScript(src) {
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = src + (src.includes('?') ? '&' : '?') + 'v=2';
+        s.onload = resolve;
+        s.onerror = resolve;
+        document.body.appendChild(s);
+      });
+    }
 
-  (async () => {
-    await inject('siteHeaderMount', '/youthagency/header.html');
-    await loadScript('/youthagency/app.js');
-    if (typeof window.initHeader === 'function') window.initHeader();
-    await inject('siteFooterMount', '/youthagency/footer.html');
-  })();
-</script>
+    (async () => {
+      await inject('siteHeaderMount', '/youthagency/header.html');
+      await loadScript('/youthagency/app.js');
+      if (typeof window.initHeader === 'function') window.initHeader();
+      await inject('siteFooterMount', '/youthagency/footer.html');
+    })();
+  </script>
 </body>
 </html>

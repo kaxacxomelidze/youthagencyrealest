@@ -748,8 +748,8 @@ let APPS = [];
 let ACTIVE_APP_ID = 0;
 
 /* cache field labels per grant */
-const FIELD_LABELS = new Map();
-const FIELD_TYPES  = new Map();
+const FIELD_LABELS = new Map(); // grant_id -> { field_89: "სახელი", ... }
+const FIELD_TYPES  = new Map(); // grant_id -> { field_89: "text"|"budget_table"|... }
 function looksLikeFieldKey(k){
   const s = String(k || "");
   return /^field_\d+$/i.test(s) || /^f_\d+$/i.test(s) || /^\d+$/.test(s);
@@ -1215,7 +1215,7 @@ function columnsFromBudgetValue(v){
 }
 
 function budgetValueLooksUsable(v){
-  return !!rowsFromColumnsAndRows(v);
+  return !!rowsFromBudgetValue(v);
 }
 
 function deepFindBudgetValue(obj, depth=0, grantId=0){
@@ -1289,6 +1289,7 @@ function rowsFromBudgetValue(v){
   return null;
 }
 
+/* ✅ NEW: deep search that also checks "field_*" values JSON */
 function deepFindBudgetRows(obj, depth=0, grantId=0){
   if(depth > 7) return null;
   obj = parseJsonMaybe(obj);
@@ -1314,6 +1315,7 @@ function deepFindBudgetRows(obj, depth=0, grantId=0){
 
   if(Array.isArray(obj.rows) && obj.rows.some(x => looksLikeBudgetRow(parseJsonMaybe(x)))) return obj.rows;
 
+  // ✅ case: field_123 can be budget by type OR by key hints
   for(const [k,v] of Object.entries(obj)){
     const kk = String(k).toLowerCase();
     const isFieldKey = kk.startsWith("field_") || kk.startsWith("f_") || /^\d+$/.test(kk);
@@ -1364,6 +1366,7 @@ function collectRawBudgetPayloads(formData, grantId){
     out.push({ key: pth, value: pv });
   };
 
+  // 1) typed budget keys from builder map (top-level fast path)
   for(const k of typedKeys){
     if(k in fd) push(k, k, fd[k]);
   }
@@ -1916,23 +1919,6 @@ async function openApp(id, grantIdHint=0){
 
     const budgetRowsHint = extractBudgetRowsFromResolved(a.form_data_resolved || []);
     showBudgetInModal(fd, budgetRowsHint, a.budget_payloads || []);
-
-    const bs = extractBudgetSummary(fd, budgetRowsHint, a.budget_payloads || []);
-    const budgetSummary = document.getElementById("amBudgetSummary");
-    const budgetSummaryMeta = document.getElementById("amBudgetSummaryMeta");
-    if (budgetSummary) {
-      budgetSummary.textContent = bs.hasBudget ? `${fmtMoney(bs.total)} ₾` : "—";
-    }
-    if (budgetSummaryMeta) {
-      budgetSummaryMeta.innerHTML = bs.hasBudget
-        ? `<span class="tag muted">სტრიქონები: ${bs.rowsCount}</span>`
-        : `<span class="tag muted">ბიუჯეტი არ არის</span>`;
-    }
-
-    const wordBtn = document.getElementById("amWordBtn");
-    if (wordBtn) {
-      wordBtn.href = exportWordUrl(a.id);
-    }
 
     document.getElementById('appModal').classList.add('show');
   }catch(e){
