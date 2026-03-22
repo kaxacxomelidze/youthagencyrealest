@@ -50,6 +50,12 @@ function has_col(PDO $pdo, string $table, string $col): bool {
   }
 }
 
+function grant_apply_clean_url(int $grantId, string $slug = ''): string {
+  $slug = trim($slug);
+  if ($slug === '') $slug = 'grant-' . $grantId;
+  return '/youthagency/grants/apply/' . $grantId . '/' . rawurlencode($slug);
+}
+
 /* ---------- input ---------- */
 $grantId = (int)($_GET['id'] ?? 0);
 if ($grantId <= 0) { http_response_code(404); echo "Grant not found"; exit; }
@@ -72,7 +78,13 @@ $st->execute([$grantId]);
 $grant = $st->fetch(PDO::FETCH_ASSOC);
 if (!$grant) { http_response_code(404); echo "Grant not found"; exit; }
 
-/* ---------- load builder ---------- */
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+if (preg_match('~/grants/grants_apply\.php$~', $requestPath)) {
+  header('Location: ' . grant_apply_clean_url($grantId, (string)($grant['slug'] ?? '')), true, 301);
+  exit;
+}
+
+/* ---------- load builder: steps, fields ---------- */
 $steps = [];
 $fieldsByStep = [];
 
@@ -293,7 +305,8 @@ $payload = [
   <div id="siteFooterMount"></div>
 
 <script>
-const DATA = <?= json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+const DATA = <?= json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+// grants/grants_apply.php -> ../admin/api/...
 const API  = "../admin/api/grants_portal_api.php";
 
 /* ========= Utils ========= */
@@ -1088,6 +1101,58 @@ function syncVisibleDomToState(){
     if(!k) return;
     state.form_data[k] = el.value ?? "";
   });
+
+function budgetPayloadForField(field){
+  const opt = field ? readBudgetOptionsFromField(field) : budgetDefaultOptions();
+  const cols = Array.isArray(opt.columns) ? opt.columns : [];
+  return {
+    rows: (state.data.budget.rows || []),
+    columns: cols.map(c => ({
+      key: String(c?.key || ''),
+      label: String(c?.label || c?.key || ''),
+      type: String(c?.type || 'text')
+    })).filter(c => c.key)
+  };
+}
+
+function syncVisibleDomToState(){
+  document.querySelectorAll("[data-field]").forEach(el=>{
+    const k = el.getAttribute("data-field");
+    if(!k) return;
+    state.form_data[k] = el.value ?? "";
+  });
+
+  const groups = new Set(Array.from(document.querySelectorAll("[data-group]"))
+    .map(el => String(el.getAttribute("data-group") || "").trim())
+    .filter(Boolean));
+
+  groups.forEach(k=>{
+    const list = Array.from(document.querySelectorAll(`input[data-group="${k}"]`));
+    const isRadio = list.some(x => x.type === "radio");
+    if(isRadio){
+      const chosen = list.find(x => x.checked);
+      state.form_data[k] = chosen ? chosen.value : "";
+    }else{
+      state.form_data[k] = list.filter(x => x.checked).map(x => x.value);
+    }
+  });
+
+  const budgetInputs = Array.from(document.querySelectorAll("[data-brow][data-bkey]"));
+  if(budgetInputs.length){
+    budgetInputs.forEach(inp=>{
+      const i = Number(inp.getAttribute("data-brow"));
+      const k = String(inp.getAttribute("data-bkey") || "");
+      if(!Number.isFinite(i) || i < 0 || !k) return;
+      state.data.budget.rows[i] = state.data.budget.rows[i] || {};
+      const col = (readBudgetOptionsFromField(findAnyBudgetTableField()).columns||[]).find(c => c.key === k);
+      if(col && col.type === "number"){
+        state.data.budget.rows[i][k] = Number(inp.value||0);
+      }else{
+        state.data.budget.rows[i][k] = inp.value;
+      }
+    });
+  }
+}
 
 function budgetPayloadForField(field){
   const opt = field ? readBudgetOptionsFromField(field) : budgetDefaultOptions();

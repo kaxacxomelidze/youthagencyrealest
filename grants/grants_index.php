@@ -6,6 +6,13 @@ date_default_timezone_set('Asia/Tbilisi');
 
 $pdo = db();
 
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+if (preg_match('~/grants/grants_index\.php$~', $requestPath)) {
+  $qs = $_SERVER['QUERY_STRING'] ?? '';
+  header('Location: /youthagency/grants/' . ($qs !== '' ? ('?' . $qs) : ''), true, 301);
+  exit;
+}
+
 if (!function_exists('h')) {
   function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
@@ -62,7 +69,7 @@ function is_deadline_passed(?string $deadline): bool {
   return time() > $ts;
 }
 
-$applyDefault = "/youthagency/grants/grants_apply.php";
+$applyDefault = "/youthagency/rules/";
 $hasTitleEn = has_col($pdo, 'grants', 'title_en');
 $hasDescEn = has_col($pdo, 'grants', 'description_en');
 $hasBodyEn = has_col($pdo, 'grants', 'body_en');

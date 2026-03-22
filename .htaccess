@@ -48,8 +48,11 @@ RewriteRule ^camps/([0-9]+)/([^/]+)/?$ camps/view.php?id=$1&slug=$2 [L,QSA]
 # /youthagency/grants -> grants/grants_index.php
 # /youthagency/grants/5/some-title -> grants/grants_view.php?id=5&slug=some-title
 # /youthagency/grants/5 -> grants/grants_view.php?id=5
+# /youthagency/grants/apply/5/some-title -> grants/grants_apply.php?id=5&slug=some-title
 # ------------------------------
 RewriteRule ^grants/?$ grants/grants_index.php [L,QSA]
+RewriteRule ^grants/apply/([0-9]+)/([^/]+)/?$ grants/grants_apply.php?id=$1&slug=$2 [L,QSA]
+RewriteRule ^grants/apply/([0-9]+)/?$ grants/grants_apply.php?id=$1 [L,QSA]
 RewriteRule ^grants/([0-9]+)/([^/]+)/?$ grants/grants_view.php?id=$1&slug=$2 [L,QSA]
 RewriteRule ^grants/([0-9]+)/?$ grants/grants_view.php?id=$1 [L,QSA]
 

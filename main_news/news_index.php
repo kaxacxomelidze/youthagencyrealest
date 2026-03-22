@@ -4,6 +4,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../admin/config.php';
 $pdo = db();
 
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+if (preg_match('~/main_news/news_index\.php$~', $requestPath)) {
+  $qs = $_SERVER['QUERY_STRING'] ?? '';
+  header('Location: /youthagency/news/' . ($qs !== '' ? ('?' . $qs) : ''), true, 301);
+  exit;
+}
+
 if (!function_exists('h')) {
   function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
