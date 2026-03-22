@@ -4,6 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Youth Agency • About</title>
+  <meta name="description" content="გაიგეთ მეტი Youth Agency-ის მისიის, სახელმწიფო ახალგაზრდული პოლიტიკის და სააგენტოს საქმიანობის შესახებ.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://sspm.ge/youthagency/about/">
+  <link rel="icon" type="image/png" href="/youthagency/imgs/youthicon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Youth Agency • About">
+  <meta property="og:description" content="ინფორმაცია სააგენტოს მისიის, როლის და ახალგაზრდებისთვის შექმნილი გარემოს შესახებ.">
+  <meta property="og:url" content="https://sspm.ge/youthagency/about/">
+  <meta property="og:image" content="https://sspm.ge/youthagency/imgs/youthicon.png">
 
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/youthagency/assets.css?v=1">

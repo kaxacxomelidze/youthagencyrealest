@@ -17,6 +17,17 @@ RewriteRule ^ - [L]
 DirectoryIndex index.html index.php
 
 # ------------------------------
+# CLEAN PUBLIC PAGES
+# /youthagency/news -> main_news/news_index.php
+# /youthagency/about -> about/index.php
+# /youthagency/contact -> contact/index.php
+# /youthagency/rules -> rules/index.php
+# ------------------------------
+RewriteRule ^news/?$ main_news/news_index.php [L,QSA]
+RewriteRule ^about/?$ about/index.php [L,QSA]
+RewriteRule ^contact/?$ contact/index.php [L,QSA]
+
+# ------------------------------
 # NEWS SEO URLS
 # /youthagency/news/123/some-title -> news_view.php?id=123&slug=some-title
 # /youthagency/news/123 -> news_view.php?id=123
