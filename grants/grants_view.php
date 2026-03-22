@@ -30,27 +30,53 @@ function safe_html_paragraphs(string $text): string {
   return nl2br(h($text), false);
 }
 
+function grant_apply_clean_url(int $grantId, string $slug = ''): string {
+  $slug = trim($slug);
+  if ($slug === '') $slug = 'grant-' . $grantId;
+  return '/youthagency/grants/apply/' . $grantId . '/' . rawurlencode($slug);
+}
+
 /**
  * Make sure the apply URL is always absolute and always contains ?id=GRANT_ID
  * - If DB has apply_url, we respect it but still append id.
  * - If DB apply_url is empty, we use /youthagency/grants_apply.php
  */
-function build_apply_url(int $grantId, string $dbUrl): string {
+function build_apply_url(int $grantId, string $dbUrl, string $slug = ''): string {
   $url = trim($dbUrl);
 
   // default apply page (ABSOLUTE)
-  if ($url === '') $url = '/youthagency/grants/grants_apply.php';
+  if ($url === '') return grant_apply_clean_url($grantId, $slug);
 
   // if someone put relative path like "grants_apply.php" -> fix to absolute
   if ($url !== '' && $url[0] !== '/' && !preg_match('~^https?://~i', $url)) {
     $url = '/youthagency/' . ltrim($url, '/');
   }
 
-  // Ensure grant id is present (id=)
-  $sep = (str_contains($url, '?')) ? '&' : '?';
-  $urlWithId = $url . $sep . 'id=' . $grantId;
+  if (preg_match('~/grants/grants_apply\.php(?:\?|$)~', $url)) {
+    return grant_apply_clean_url($grantId, $slug);
+  }
 
-  return $urlWithId;
+  // Ensure grant id is present (id=) once
+  if (!preg_match('/(?:^|[?&])id=\d+(?:&|$)/', $url)) {
+    $sep = (str_contains($url, '?')) ? '&' : '?';
+    $url .= $sep . 'id=' . $grantId;
+  }
+
+  return $url;
+}
+
+function is_deadline_passed(?string $deadline): bool {
+  $deadlineRaw = trim((string)$deadline);
+  if ($deadlineRaw === '') return false;
+
+  $ts = strtotime($deadlineRaw);
+  if (!$ts) return false;
+
+  if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $deadlineRaw)) {
+    $ts += 86399;
+  }
+
+  return time() > $ts;
 }
 
 $id = (int)($_GET['id'] ?? 0);
@@ -65,11 +91,11 @@ $st->execute([$id]);
 $g = $st->fetch(PDO::FETCH_ASSOC);
 if (!$g) { http_response_code(404); exit('Not found'); }
 
-$isClosed = (($g['status'] ?? 'current') === 'closed');
+$isClosed = (($g['status'] ?? 'current') === 'closed') || is_deadline_passed((string)($g['deadline'] ?? ''));
 $statusLabel = $isClosed ? 'დახურული' : 'მიმდინარე';
 
 // ✅ FIXED APPLY URL (always /youthagency/grants_apply.php?id=ID)
-$applyUrl = build_apply_url($id, (string)($g['grants/apply_url'] ?? ''));
+$applyUrl = build_apply_url($id, (string)($g['apply_url'] ?? ''), (string)($g['slug'] ?? ''));
 
 $img = trim((string)($g['image_path'] ?? ''));
 if ($img === '') {
@@ -84,6 +110,7 @@ if ($img === '') {
 
 $title = (string)($g['title'] ?? 'საგრანტო პროგრამა');
 $titleEn = (string)($g['title_en'] ?? '');
+$slug = trim((string)($g['slug'] ?? ''));
 $desc  = trim((string)($g['description'] ?? ''));
 $descEn  = trim((string)($g['description_en'] ?? ''));
 $body  = (string)($g['body'] ?? '');
