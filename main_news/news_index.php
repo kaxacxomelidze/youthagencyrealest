@@ -4,6 +4,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../admin/config.php';
 $pdo = db();
 
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+if (preg_match('~/main_news/news_index\.php$~', $requestPath)) {
+  $qs = $_SERVER['QUERY_STRING'] ?? '';
+  header('Location: /youthagency/news/' . ($qs !== '' ? ('?' . $qs) : ''), true, 301);
+  exit;
+}
+
 if (!function_exists('h')) {
   function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
@@ -137,6 +144,12 @@ $placeholder = "data:image/svg+xml;charset=UTF-8," . rawurlencode(
     <text x="320" y="330" text-anchor="middle" font-family="Arial" font-size="18" fill="#64748b">No image</text>
   </svg>'
 );
+
+$seoTitle = 'Youth Agency • News';
+$seoDescription = $q !== ''
+  ? ('მოძებნე სიახლეები Youth Agency-ის ვებგვერდზე: ' . $q)
+  : 'Youth Agency-ის სიახლეები, განცხადებები და განახლებები ერთ გვერდზე.';
+$canonicalUrl = 'https://sspm.ge/youthagency/news/' . ($q !== '' ? '?q=' . rawurlencode($q) : '');
 ?>
 <!doctype html>
 <html lang="ka">
@@ -144,7 +157,17 @@ $placeholder = "data:image/svg+xml;charset=UTF-8," . rawurlencode(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Youth Agency • News</title>
+  <title><?=h($seoTitle)?></title>
+  <meta name="description" content="<?=h($seoDescription)?>">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="<?=h($canonicalUrl)?>">
+  <link rel="icon" type="image/png" href="/youthagency/imgs/youthicon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="<?=h($seoTitle)?>">
+  <meta property="og:description" content="<?=h($seoDescription)?>">
+  <meta property="og:url" content="<?=h($canonicalUrl)?>">
+  <meta property="og:image" content="https://sspm.ge/youthagency/imgs/youthicon.png">
+  <meta name="twitter:card" content="summary_large_image">
 
   <!-- Fonts & Icons -->
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -282,10 +305,12 @@ $placeholder = "data:image/svg+xml;charset=UTF-8," . rawurlencode(
       max-width:100%;
       flex-wrap:wrap;
     }
+    .in-wrap{width:100%}
     .btn{
       width:100%;
       justify-content:center;
     }
+    .hint{width:100%}
   }
   @media (max-width:640px){
     .wrap{padding:24px 16px 50px;}

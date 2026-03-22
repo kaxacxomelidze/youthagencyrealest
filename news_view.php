@@ -102,6 +102,13 @@ if ($lang === 'en') {
   $viewBody  = (trim($bodyKa) !== '') ? $bodyKa : $bodyEn;
 }
 
+$metaDescription = trim(preg_replace('/\s+/u', ' ', strip_tags($viewBody)) ?? '');
+if ($metaDescription === '') $metaDescription = 'Youth Agency-ის სიახლე და დეტალური ინფორმაცია.';
+if (mb_strlen($metaDescription) > 170) $metaDescription = mb_substr($metaDescription, 0, 167) . '...';
+$heroImage = trim((string)($n['image_path'] ?? ''));
+$heroImageUrl = $heroImage !== '' ? 'https://sspm.ge/youthagency/' . ltrim($heroImage, '/') : 'https://sspm.ge/youthagency/imgs/youthicon.png';
+$canonicalUrl = 'https://sspm.ge/youthagency/news/' . (int)$n['id'] . '/' . rawurlencode($slug);
+
 ?>
 <!doctype html>
 <html lang="<?=h($lang)?>">
@@ -109,6 +116,16 @@ if ($lang === 'en') {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><?=h($viewTitle)?></title>
+  <meta name="description" content="<?=h($metaDescription)?>">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="<?=h($canonicalUrl)?>">
+  <link rel="icon" type="image/png" href="/youthagency/imgs/youthicon.png">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="<?=h($viewTitle)?>">
+  <meta property="og:description" content="<?=h($metaDescription)?>">
+  <meta property="og:url" content="<?=h($canonicalUrl)?>">
+  <meta property="og:image" content="<?=h($heroImageUrl)?>">
+  <meta name="twitter:card" content="summary_large_image">
 
   <link rel="stylesheet" href="/youthagency/assets.css?v=1">
 
@@ -123,7 +140,7 @@ if ($lang === 'en') {
 </head>
 <body>
   <div class="wrap">
-    <a class="btn" href="javascript:history.back()">← Back</a>
+    <a class="btn" href="/youthagency/news/">← Back to news</a>
 
     <h1 style="margin:14px 0"><?=h($viewTitle)?></h1>
 
