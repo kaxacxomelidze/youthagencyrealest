@@ -7,58 +7,104 @@ $pdo = db();
 function h($s): string {
   return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 }
+
 function has_col(PDO $pdo, string $table, string $col): bool {
   $table = preg_replace('/[^a-zA-Z0-9_]+/', '', $table);
   $col   = preg_replace('/[^a-zA-Z0-9_]+/', '', $col);
   if ($table === '' || $col === '') return false;
-  try{
+
+  try {
     $q = $pdo->query("SHOW COLUMNS FROM `$table` LIKE " . $pdo->quote($col));
     return (bool)$q->fetch(PDO::FETCH_ASSOC);
-  }catch(Throwable $e){
+  } catch (Throwable $e) {
     return false;
   }
 }
+
 function fmt_date(?string $raw): string {
   $raw = trim((string)$raw);
   if ($raw === '') return '—';
   $t = strtotime($raw);
   return $t ? date('Y-m-d', $t) : $raw;
 }
-function safe_html_paragraphs(string $text): string {
-  $text = trim($text);
-  if ($text === '') return '—';
-  return nl2br(h($text), false);
+
+function fmt_money($value, string $currency = '₾'): string {
+  $raw = trim((string)$value);
+  if ($raw === '') return '—';
+
+  $normalized = str_replace([' ', ','], ['', ''], $raw);
+  if (is_numeric($normalized)) {
+    $num = (float)$normalized;
+    $formatted = fmod($num, 1.0) === 0.0
+      ? number_format($num, 0, '.', ' ')
+      : number_format($num, 2, '.', ' ');
+    return $formatted . ' ' . $currency;
+  }
+
+  return str_contains($raw, $currency) ? $raw : ($raw . ' ' . $currency);
 }
 
-function grant_apply_clean_url(int $grantId, string $slug = ''): string {
-  $slug = trim($slug);
-  if ($slug === '') $slug = 'grant-' . $grantId;
-  return '/youthagency/grants/apply/' . $grantId . '/' . rawurlencode($slug);
+function build_public_image_url(string $rawPath): string {
+  $rawPath = trim($rawPath);
+  if ($rawPath === '') return '';
+
+  if (
+    preg_match('~^(https?:)?//~i', $rawPath) ||
+    stripos($rawPath, 'data:image/') === 0
+  ) {
+    return $rawPath;
+  }
+
+  $path = str_replace('\\', '/', $rawPath);
+  $path = preg_replace('~/+~', '/', $path);
+
+  $pos = stripos($path, '/youthagency/');
+  if ($pos !== false) {
+    return substr($path, $pos);
+  }
+
+  $segments = [];
+  foreach (explode('/', $path) as $seg) {
+    $seg = trim($seg);
+    if ($seg === '' || $seg === '.') continue;
+    if ($seg === '..') {
+      array_pop($segments);
+      continue;
+    }
+    $segments[] = $seg;
+  }
+
+  $clean = implode('/', $segments);
+  if ($clean === '') return '';
+
+  if (stripos($clean, 'youthagency/') === 0) {
+    return '/' . $clean;
+  }
+
+  if (stripos($clean, 'admin/uploads/') === 0) {
+    return '/youthagency/' . $clean;
+  }
+
+  if (stripos($clean, 'uploads/') === 0) {
+    return '/youthagency/admin/' . $clean;
+  }
+
+  return '/youthagency/' . ltrim($clean, '/');
 }
 
-/**
- * Make sure the apply URL is always absolute and always contains ?id=GRANT_ID
- * - If DB has apply_url, we respect it but still append id.
- * - If DB apply_url is empty, we use /youthagency/grants_apply.php
- */
-function build_apply_url(int $grantId, string $dbUrl, string $slug = ''): string {
+function build_apply_url(int $grantId, string $dbUrl): string {
   $url = trim($dbUrl);
 
-  // default apply page (ABSOLUTE)
-  if ($url === '') return grant_apply_clean_url($grantId, $slug);
+  if ($url === '') {
+    $url = '/youthagency/grants/grants_apply.php';
+  }
 
-  // if someone put relative path like "grants_apply.php" -> fix to absolute
   if ($url !== '' && $url[0] !== '/' && !preg_match('~^https?://~i', $url)) {
     $url = '/youthagency/' . ltrim($url, '/');
   }
 
-  if (preg_match('~/grants/grants_apply\.php(?:\?|$)~', $url)) {
-    return grant_apply_clean_url($grantId, $slug);
-  }
-
-  // Ensure grant id is present (id=) once
   if (!preg_match('/(?:^|[?&])id=\d+(?:&|$)/', $url)) {
-    $sep = (str_contains($url, '?')) ? '&' : '?';
+    $sep = str_contains($url, '?') ? '&' : '?';
     $url .= $sep . 'id=' . $grantId;
   }
 
@@ -79,25 +125,116 @@ function is_deadline_passed(?string $deadline): bool {
   return time() > $ts;
 }
 
-$id = (int)($_GET['id'] ?? 0);
-if ($id <= 0) { http_response_code(404); exit('Not found'); }
+function parse_json_array($json): array {
+  if (!is_string($json) || trim($json) === '') return [];
+  try {
+    $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+    return is_array($decoded) ? $decoded : [];
+  } catch (Throwable $e) {
+    return [];
+  }
+}
 
-$st = $pdo->prepare("SELECT id,title," . (has_col($pdo, 'grants', 'title_en') ? "title_en" : "'' AS title_en") . ",
-  slug,description," . (has_col($pdo, 'grants', 'description_en') ? "description_en" : "'' AS description_en") . ",
-  body," . (has_col($pdo, 'grants', 'body_en') ? "body_en" : "'' AS body_en") . ",
-  deadline,status,apply_url,is_active,image_path
-  FROM grants WHERE id=? AND is_active=1 LIMIT 1");
+function normalize_applicant_label(string $value): string {
+  $v = trim(mb_strtolower($value));
+  if ($v === '') return '';
+
+  if (in_array($v, ['person', 'physical person', 'individual', 'ფიზიკური პირი'], true)) {
+    return 'ფიზიკური პირი';
+  }
+
+  if (in_array($v, ['org', 'organization', 'organisation', 'company', 'ngo', 'იურიდიული პირი', 'ორგანიზაცია'], true)) {
+    return 'ორგანიზაცია / იურიდიული პირი';
+  }
+
+  return $value;
+}
+
+function detect_applicant_types(array $fields): array {
+  foreach ($fields as $f) {
+    $label = mb_strtolower(trim((string)($f['label'] ?? '')));
+    $type  = mb_strtolower(trim((string)($f['type'] ?? '')));
+
+    $looksLikeApplicantType =
+      str_contains($label, 'განმცხადებლის ტიპ') ||
+      str_contains($label, 'applicant type') ||
+      (str_contains($label, 'ტიპ') && in_array($type, ['select', 'radio', 'checkbox'], true));
+
+    if (!$looksLikeApplicantType) {
+      continue;
+    }
+
+    $options = parse_json_array($f['options_json'] ?? '');
+    $result = [];
+
+    foreach ($options as $opt) {
+      if (is_array($opt)) {
+        $opt = (string)($opt['label'] ?? $opt['value'] ?? '');
+      } else {
+        $opt = (string)$opt;
+      }
+      $opt = trim($opt);
+      if ($opt !== '') {
+        $result[] = normalize_applicant_label($opt);
+      }
+    }
+
+    $result = array_values(array_unique(array_filter($result)));
+    if ($result) return $result;
+  }
+
+  return [];
+}
+
+/* ---------- input ---------- */
+$id = (int)($_GET['id'] ?? 0);
+if ($id <= 0) {
+  http_response_code(404);
+  exit('Not found');
+}
+
+/* ---------- load grant ---------- */
+$hasTitleEn    = has_col($pdo, 'grants', 'title_en');
+$hasDescEn     = has_col($pdo, 'grants', 'description_en');
+$hasBodyEn     = has_col($pdo, 'grants', 'body_en');
+$hasMaxBudget  = has_col($pdo, 'grants', 'max_budget');
+$hasCurrency   = has_col($pdo, 'grants', 'currency');
+
+$sql = "SELECT
+          id,
+          title,
+          " . ($hasTitleEn ? "title_en" : "'' AS title_en") . ",
+          slug,
+          description,
+          " . ($hasDescEn ? "description_en" : "'' AS description_en") . ",
+          body,
+          " . ($hasBodyEn ? "body_en" : "'' AS body_en") . ",
+          deadline,
+          status,
+          apply_url,
+          is_active,
+          image_path" .
+          ($hasMaxBudget ? ", max_budget" : ", 0 AS max_budget") .
+          ($hasCurrency ? ", currency" : ", '₾' AS currency") . "
+        FROM grants
+        WHERE id = ? AND is_active = 1
+        LIMIT 1";
+
+$st = $pdo->prepare($sql);
 $st->execute([$id]);
 $g = $st->fetch(PDO::FETCH_ASSOC);
-if (!$g) { http_response_code(404); exit('Not found'); }
+
+if (!$g) {
+  http_response_code(404);
+  exit('Not found');
+}
 
 $isClosed = (($g['status'] ?? 'current') === 'closed') || is_deadline_passed((string)($g['deadline'] ?? ''));
 $statusLabel = $isClosed ? 'დახურული' : 'მიმდინარე';
+$applyUrl = build_apply_url($id, (string)($g['apply_url'] ?? ''));
 
-// ✅ FIXED APPLY URL (always /youthagency/grants_apply.php?id=ID)
-$applyUrl = build_apply_url($id, (string)($g['apply_url'] ?? ''), (string)($g['slug'] ?? ''));
-
-$img = trim((string)($g['image_path'] ?? ''));
+/* ---------- image ---------- */
+$img = build_public_image_url((string)($g['image_path'] ?? ''));
 if ($img === '') {
   $img = "data:image/svg+xml;charset=UTF-8," . rawurlencode(
     '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800">
@@ -108,21 +245,85 @@ if ($img === '') {
   );
 }
 
-$title = (string)($g['title'] ?? 'საგრანტო პროგრამა');
-$titleEn = (string)($g['title_en'] ?? '');
-$slug = trim((string)($g['slug'] ?? ''));
-$desc  = trim((string)($g['description'] ?? ''));
-$descEn  = trim((string)($g['description_en'] ?? ''));
-$body  = (string)($g['body'] ?? '');
-$bodyEn  = (string)($g['body_en'] ?? '');
+/* ---------- load important info from apply-related tables ---------- */
+$steps = [];
+$fields = [];
+$requiredFiles = [];
+$optionalFiles = [];
+
+try {
+  $q = $pdo->prepare("
+    SELECT id, grant_id, step_key, name, sort_order
+    FROM grant_steps
+    WHERE grant_id = ? AND is_enabled = 1
+    ORDER BY sort_order ASC, id ASC
+  ");
+  $q->execute([$id]);
+  $steps = $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+  $steps = [];
+}
+
+try {
+  $q = $pdo->prepare("
+    SELECT id, grant_id, step_id, label, type, options_json, is_required, show_for, sort_order
+    FROM grant_fields
+    WHERE grant_id = ? AND is_enabled = 1
+    ORDER BY step_id ASC, sort_order ASC, id ASC
+  ");
+  $q->execute([$id]);
+  $fields = $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+  $fields = [];
+}
+
+try {
+  $q = $pdo->prepare("
+    SELECT id, grant_id, name, is_required
+    FROM grant_file_requirements
+    WHERE grant_id = ? AND is_enabled = 1
+    ORDER BY id ASC
+  ");
+  $q->execute([$id]);
+  $reqs = $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+  foreach ($reqs as $r) {
+    if ((int)($r['is_required'] ?? 0) === 1) {
+      $requiredFiles[] = $r;
+    } else {
+      $optionalFiles[] = $r;
+    }
+  }
+} catch (Throwable $e) {
+  $requiredFiles = [];
+  $optionalFiles = [];
+}
+
+$applicantTypes = detect_applicant_types($fields);
+
+$title    = (string)($g['title'] ?? 'საგრანტო პროგრამა');
+$titleEn  = (string)($g['title_en'] ?? '');
+$desc     = trim((string)($g['description'] ?? ''));
+$descEn   = trim((string)($g['description_en'] ?? ''));
+$body     = (string)($g['body'] ?? '');
+$bodyEn   = (string)($g['body_en'] ?? '');
 $deadline = (string)($g['deadline'] ?? '');
+$currency = trim((string)($g['currency'] ?? '₾')) ?: '₾';
+$maxBudget = trim((string)($g['max_budget'] ?? ''));
+
+$stepNames = [];
+foreach ($steps as $s) {
+  $name = trim((string)($s['name'] ?? ''));
+  if ($name !== '') $stepNames[] = $name;
+}
+$stepNames = array_values(array_unique($stepNames));
 ?>
 <!doctype html>
 <html lang="ka">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><?=h($title)?></title>
+  <title><?= h($title) ?></title>
 
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -156,9 +357,14 @@ $deadline = (string)($g['deadline'] ?? '');
       --badBg: rgba(231, 76, 60, .18);
       --badBd: rgba(231, 76, 60, .45);
       --badTx: #FFD0CB;
+
+      --blueBg: rgba(59, 130, 246, .18);
+      --blueBd: rgba(59, 130, 246, .45);
+      --blueTx: #CFE3FF;
     }
 
-    html, body{ background: var(--bg) !important; }
+    html, body { background: var(--bg) !important; }
+
     body{
       margin:0;
       color: var(--text);
@@ -203,12 +409,6 @@ $deadline = (string)($g['deadline'] ?? '');
       border-color: var(--line2);
     }
 
-    .btn.disabled{
-      opacity:.55;
-      pointer-events:none;
-      filter:saturate(.7);
-    }
-
     .hero{
       border:1px solid var(--line);
       border-radius: var(--radius);
@@ -228,7 +428,7 @@ $deadline = (string)($g['deadline'] ?? '');
 
     .heroTitle{
       margin:0;
-      font-size:22px;
+      font-size:24px;
       font-weight:950;
       line-height:1.25;
       letter-spacing:-.2px;
@@ -238,26 +438,30 @@ $deadline = (string)($g['deadline'] ?? '');
       margin:10px 0 0;
       color: var(--muted);
       font-size:14px;
-      line-height:1.65;
+      line-height:1.7;
       max-width:860px;
       padding:0 18px 16px;
     }
 
     .layout{
       display:grid;
-      grid-template-columns: 1.35fr .85fr;
+      grid-template-columns: 1.2fr .9fr;
       gap:14px;
       padding:18px;
     }
-    @media(max-width:980px){ .layout{ grid-template-columns: 1fr; } }
+
+    @media(max-width:980px){
+      .layout{ grid-template-columns: 1fr; }
+    }
 
     .photo{
       border:1px solid var(--line);
       border-radius: var(--radius);
       overflow:hidden;
       background: var(--card2);
-      min-height: 260px;
+      min-height:260px;
     }
+
     .photo img{
       width:100%;
       height:100%;
@@ -291,19 +495,61 @@ $deadline = (string)($g['deadline'] ?? '');
       border:1px solid transparent;
     }
     .pill.current{ background: var(--okBg); border-color: var(--okBd); color: var(--okTx); }
-    .pill.closed{  background: var(--badBg); border-color: var(--badBd); color: var(--badTx); }
-
+    .pill.closed{ background: var(--badBg); border-color: var(--badBd); color: var(--badTx); }
     .pill.neutral{
       background: rgba(255,255,255,.06);
       border: 1px solid var(--line2);
       color: rgba(243,245,250,.86);
+    }
+    .pill.info{
+      background: var(--blueBg);
+      border-color: var(--blueBd);
+      color: var(--blueTx);
+    }
+
+    .infoGrid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:16px;
+    }
+
+    @media(max-width:620px){
+      .infoGrid{ grid-template-columns:1fr; }
+    }
+
+    .infoCard{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background: rgba(255,255,255,.03);
+      padding:13px;
+    }
+
+    .infoLabel{
+      color: var(--muted2);
+      font-size:12px;
+      font-weight:900;
+      margin-bottom:6px;
+    }
+
+    .infoValue{
+      color: var(--text);
+      font-size:15px;
+      font-weight:950;
+      line-height:1.45;
+      word-break:break-word;
+    }
+
+    .moneyValue{
+      font-size:24px;
+      line-height:1.1;
     }
 
     .actions{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      margin-top:14px;
+      margin-top:16px;
     }
 
     .block{
@@ -314,17 +560,48 @@ $deadline = (string)($g['deadline'] ?? '');
       padding:18px;
       box-shadow: var(--shadow2);
     }
+
     .block h2{
       margin:0 0 10px;
-      font-size:15px;
+      font-size:16px;
       font-weight:950;
       letter-spacing:.1px;
     }
+
     .content{
-      color: rgba(243,245,250,.72);
+      color: rgba(243,245,250,.74);
       font-size:14px;
       line-height:1.8;
       white-space:pre-wrap;
+    }
+
+    .plainList{
+      margin:0;
+      padding-left:18px;
+      color: rgba(243,245,250,.84);
+      line-height:1.9;
+      font-size:14px;
+      font-weight:700;
+    }
+
+    .plainList li + li{ margin-top:4px; }
+
+    .muted{
+      color: var(--muted);
+      font-size:14px;
+      line-height:1.7;
+      font-weight:700;
+    }
+
+    .note{
+      border:1px solid var(--blueBd);
+      background: var(--blueBg);
+      color: var(--blueTx);
+      border-radius:14px;
+      padding:12px 14px;
+      font-weight:800;
+      line-height:1.6;
+      margin-top:12px;
     }
 
     a{ -webkit-tap-highlight-color: transparent; }
@@ -335,61 +612,165 @@ $deadline = (string)($g['deadline'] ?? '');
   <div id="siteHeaderMount"></div>
 
   <main class="wrap">
-
     <div class="topbar">
       <a class="btn secondary" href="/youthagency/grants/" onclick="if(history.length>1){ history.back(); return false; }">
-        <i class="fa-solid fa-arrow-left"></i> <span data-i18n="grantsView.back">უკან</span>
+        <i class="fa-solid fa-arrow-left"></i>
+        <span>უკან</span>
       </a>
     </div>
 
     <section class="hero">
       <div class="heroHead">
-        <h1 class="heroTitle" data-i18n-text data-text-ka="<?=h($title)?>" data-text-en="<?=h($titleEn)?>"><?=h($title)?></h1>
+        <h1 class="heroTitle"
+            data-i18n-text
+            data-text-ka="<?= h($title) ?>"
+            data-text-en="<?= h($titleEn) ?>">
+          <?= h($title) ?>
+        </h1>
 
         <span class="pill <?= $isClosed ? 'closed' : 'current' ?>">
           <i class="fa-solid fa-circle" style="font-size:8px;opacity:.85"></i>
-          <span data-i18n="<?= $isClosed ? 'grantsView.statusClosed' : 'grantsView.statusOpen' ?>"><?=h($statusLabel)?></span>
+          <?= h($statusLabel) ?>
         </span>
       </div>
 
-      <?php if($desc !== '' || $descEn !== ''): ?>
-        <div class="heroDesc" data-i18n-text data-text-ka="<?=h($desc)?>" data-text-en="<?=h($descEn)?>"><?=h($desc !== '' ? $desc : $descEn)?></div>
+      <?php if ($desc !== '' || $descEn !== ''): ?>
+        <div class="heroDesc"
+             data-i18n-text
+             data-text-ka="<?= h($desc) ?>"
+             data-text-en="<?= h($descEn) ?>">
+          <?= h($desc !== '' ? $desc : $descEn) ?>
+        </div>
       <?php endif; ?>
 
       <div class="layout">
         <div class="photo">
-          <img src="<?=h($img)?>" alt="">
+          <img src="<?= h($img) ?>" alt="<?= h($title) ?>">
         </div>
 
         <aside class="side">
           <div class="metaRow">
             <span class="pill neutral">
               <i class="fa-regular fa-calendar"></i>
-              <span data-i18n="grantsView.deadlineLabel">ვადა:</span> <?=h(fmt_date($deadline))?>
+              ვადა: <?= h(fmt_date($deadline)) ?>
+            </span>
+
+            <span class="pill info">
+              <i class="fa-solid fa-layer-group"></i>
+              ნაბიჯები: <?= count($stepNames) ?>
+            </span>
+
+            <span class="pill info">
+              <i class="fa-regular fa-folder-open"></i>
+              დოკუმენტები: <?= count($requiredFiles) + count($optionalFiles) ?>
             </span>
           </div>
 
-          <div class="actions">
-            <?php if(!$isClosed): ?>
-              <!-- ✅ FIXED: always absolute + always includes grant id -->
-              <a class="btn" href="<?=h($applyUrl)?>">
-                <i class="fa-solid fa-file-pen"></i> <span data-i18n="grantsView.apply">განაცხადის შევსება</span>
-              </a>
+          <div class="infoGrid">
+            <?php if ($maxBudget !== '' && (float)$maxBudget > 0): ?>
+              <div class="infoCard">
+                <div class="infoLabel">მაქსიმალური ბიუჯეტი</div>
+                <div class="infoValue moneyValue"><?= h(fmt_money($maxBudget, $currency)) ?></div>
+              </div>
             <?php endif; ?>
 
-            <a class="btn secondary" href="/youthagency/grants/">
-              <i class="fa-solid fa-list"></i> <span data-i18n="grantsView.all">ყველა საგრანტო</span>
-            </a>
+            <div class="infoCard">
+              <div class="infoLabel">სტატუსი</div>
+              <div class="infoValue"><?= h($statusLabel) ?></div>
+            </div>
+
+            <?php if ($applicantTypes): ?>
+              <div class="infoCard">
+                <div class="infoLabel">ვის შეუძლია განაცხადი</div>
+                <div class="infoValue"><?= h(implode(', ', $applicantTypes)) ?></div>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($requiredFiles): ?>
+              <div class="infoCard">
+                <div class="infoLabel">სავალდებულო დოკუმენტები</div>
+                <div class="infoValue"><?= count($requiredFiles) ?> დოკუმენტი</div>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($optionalFiles): ?>
+              <div class="infoCard">
+                <div class="infoLabel">დამატებითი დოკუმენტები</div>
+                <div class="infoValue"><?= count($optionalFiles) ?> დოკუმენტი</div>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($stepNames): ?>
+              <div class="infoCard">
+                <div class="infoLabel">განაცხადის ფორმატი</div>
+                <div class="infoValue">მრავალნაბიჯიანი ონლაინ განაცხადი</div>
+              </div>
+            <?php endif; ?>
           </div>
+
+          <?php if (!$isClosed): ?>
+            <div class="actions">
+              <a class="btn" href="<?= h($applyUrl) ?>">
+                <i class="fa-solid fa-file-pen"></i>
+                განაცხადის შევსება
+              </a>
+            </div>
+          <?php endif; ?>
+
+          <?php if ($maxBudget !== '' && (float)$maxBudget > 0): ?>
+            <div class="note">
+              ბიუჯეტის ცხრილში შეტანილი თანხების ჯამი არ უნდა აღემატებოდეს
+              <b><?= h(fmt_money($maxBudget, $currency)) ?></b>-ს.
+            </div>
+          <?php endif; ?>
         </aside>
       </div>
     </section>
 
-    <section class="block">
-      <h2 data-i18n="grantsView.detailsTitle">დეტალური აღწერა</h2>
-      <div class="content" data-i18n-text data-text-ka="<?=h($body)?>" data-text-en="<?=h($bodyEn)?>"><?=h($body !== '' ? $body : $bodyEn)?></div>
-    </section>
+    <?php if ($stepNames): ?>
+      <section class="block">
+        <h2>განაცხადის ნაბიჯები</h2>
+        <ol class="plainList">
+          <?php foreach ($stepNames as $stepName): ?>
+            <li><?= h($stepName) ?></li>
+          <?php endforeach; ?>
+        </ol>
+      </section>
+    <?php endif; ?>
 
+    <?php if ($requiredFiles || $optionalFiles): ?>
+      <section class="block">
+        <h2>საჭირო დოკუმენტები</h2>
+
+        <?php if ($requiredFiles): ?>
+          <div class="muted" style="margin-bottom:8px;">სავალდებულო დოკუმენტები:</div>
+          <ul class="plainList">
+            <?php foreach ($requiredFiles as $file): ?>
+              <li><?= h((string)($file['name'] ?? '')) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+
+        <?php if ($optionalFiles): ?>
+          <div class="muted" style="margin:14px 0 8px;">დამატებითი დოკუმენტები:</div>
+          <ul class="plainList">
+            <?php foreach ($optionalFiles as $file): ?>
+              <li><?= h((string)($file['name'] ?? '')) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+      </section>
+    <?php endif; ?>
+
+    <section class="block">
+      <h2>დეტალური აღწერა</h2>
+      <div class="content"
+           data-i18n-text
+           data-text-ka="<?= h($body) ?>"
+           data-text-en="<?= h($bodyEn) ?>">
+        <?= h($body !== '' ? $body : $bodyEn) ?>
+      </div>
+    </section>
   </main>
 
   <div id="siteFooterMount"></div>
@@ -398,24 +779,27 @@ $deadline = (string)($g['deadline'] ?? '');
     async function inject(id, url){
       const el = document.getElementById(id);
       if(!el) return;
-      const res = await fetch(url + (url.includes('?')?'&':'?') + 'v=2');
+      const res = await fetch(url + (url.includes('?') ? '&' : '?') + 'v=2');
       if(res.ok) el.innerHTML = await res.text();
     }
+
     async function loadScript(url){
-      return new Promise((ok, bad)=>{
-        const s=document.createElement('script');
-        s.src=url + (url.includes('?')?'&':'?') + 'v=2';
-        s.onload=ok; s.onerror=bad;
+      return new Promise((ok, bad) => {
+        const s = document.createElement('script');
+        s.src = url + (url.includes('?') ? '&' : '?') + 'v=2';
+        s.onload = ok;
+        s.onerror = bad;
         document.body.appendChild(s);
       });
     }
-    (async()=>{
-      await inject('siteHeaderMount','/youthagency/header.html');
-      try{
+
+    (async () => {
+      await inject('siteHeaderMount', '/youthagency/header.html');
+      try {
         await loadScript('/youthagency/app.js');
-        if(typeof window.initHeader==='function') window.initHeader();
-      }catch(e){}
-      await inject('siteFooterMount','/youthagency/footer.html');
+        if (typeof window.initHeader === 'function') window.initHeader();
+      } catch (e) {}
+      await inject('siteFooterMount', '/youthagency/footer.html');
     })();
   </script>
 </body>
